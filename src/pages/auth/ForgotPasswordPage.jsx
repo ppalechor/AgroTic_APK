@@ -1,8 +1,8 @@
 import React, { useState } from 'react';
 import { View, Text, Image, StyleSheet } from 'react-native';
-import Input from '../components/atoms/Input';
-import Button from '../components/atoms/Button';
-import { requestPasswordReset } from '../services/api';
+import Input from '../../components/atoms/Input';
+import Button from '../../components/atoms/Button';
+import { requestPasswordReset } from '../../services/api';
 import { useNavigation } from '@react-navigation/native';
 
 export default function ForgotPasswordPage() {
@@ -34,7 +34,7 @@ export default function ForgotPasswordPage() {
 
   return (
     <View style={styles.root}>
-      <Image source={require('../../assets/logo.png')} style={styles.logo} resizeMode="contain" />
+      <Image source={require('../../../assets/logo.png')} style={styles.logo} resizeMode="contain" />
       <View style={styles.card}>
         <Text style={styles.title}>¿Olvidaste tu contraseña?</Text>
         <Text style={styles.message}>Ingresa tu correo electrónico y te enviaremos un enlace para restablecer tu contraseña.</Text>

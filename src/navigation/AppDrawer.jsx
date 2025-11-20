@@ -1,8 +1,14 @@
 import React from 'react';
 import { createDrawerNavigator } from '@react-navigation/drawer';
 import { View, Image, Platform } from 'react-native';
-import DashboardPage from '../pages/DashboardPage';
-import ModulePage from '../pages/ModulePage';
+import DashboardPage from '../pages/dashboard/DashboardPage';
+import ModulePage from '../pages/common/ModulePage';
+import InventoryPage from '../pages/inventario/InventoryPage';
+import AlmacenesPage from '../pages/inventario/AlmacenesPage';
+import CategoriasPage from '../pages/inventario/CategoriasPage';
+import EpasPage from '../pages/fitosanitario/EpasPage';
+import TratamientosPage from '../pages/fitosanitario/TratamientosPage';
+import UsersPage from '../pages/users/UsersPage';
 import CustomDrawerContent from './CustomDrawerContent';
 import HeaderActions from './HeaderActions';
 import { Feather } from '@expo/vector-icons';
@@ -29,14 +35,14 @@ export default function AppDrawer() {
       <Drawer.Screen name="Mapa de Lotes" children={() => <ModulePage title="Mapa de Lotes" />} options={{ drawerIcon: ({ color, size }) => <Feather name="map" color={color} size={size} /> }} />
       <Drawer.Screen name="Actividades" children={() => <ModulePage title="Actividades" />} options={{ drawerIcon: ({ color, size }) => <Feather name="activity" color={color} size={size} /> }} />
       <Drawer.Screen name="Calendario" children={() => <ModulePage title="Calendario" />} options={{ drawerIcon: ({ color, size }) => <Feather name="calendar" color={color} size={size} /> }} />
-      <Drawer.Screen name="Gestión de EPA" children={() => <ModulePage title="Gestión de EPA" />} options={{ drawerIcon: ({ color, size }) => <Feather name="package" color={color} size={size} /> }} />
-      <Drawer.Screen name="Tratamientos" children={() => <ModulePage title="Tratamientos" />} options={{ drawerIcon: ({ color, size }) => <Feather name="shield" color={color} size={size} /> }} />
+      <Drawer.Screen name="Gestión de EPA" component={EpasPage} options={{ drawerIcon: ({ color, size }) => <Feather name="package" color={color} size={size} /> }} />
+      <Drawer.Screen name="Tratamientos" component={TratamientosPage} options={{ drawerIcon: ({ color, size }) => <Feather name="shield" color={color} size={size} /> }} />
       <Drawer.Screen name="Finanzas" children={() => <ModulePage title="Finanzas" />} options={{ drawerIcon: ({ color, size }) => <Feather name="dollar-sign" color={color} size={size} /> }} />
-      <Drawer.Screen name="Gestión de Inventario" children={() => <ModulePage title="Gestión de Inventario" />} options={{ drawerIcon: ({ color, size }) => <Feather name="box" color={color} size={size} /> }} />
-      <Drawer.Screen name="Almacenes" children={() => <ModulePage title="Almacenes" />} options={{ drawerIcon: ({ color, size }) => <Feather name="box" color={color} size={size} /> }} />
-      <Drawer.Screen name="Categorías" children={() => <ModulePage title="Categorías" />} options={{ drawerIcon: ({ color, size }) => <Feather name="layers" color={color} size={size} /> }} />
+      <Drawer.Screen name="Gestión de Inventario" component={InventoryPage} options={{ drawerIcon: ({ color, size }) => <Feather name="box" color={color} size={size} /> }} />
+      <Drawer.Screen name="Almacenes" component={AlmacenesPage} options={{ drawerIcon: ({ color, size }) => <Feather name="box" color={color} size={size} /> }} />
+      <Drawer.Screen name="Categorías" component={CategoriasPage} options={{ drawerIcon: ({ color, size }) => <Feather name="layers" color={color} size={size} /> }} />
       <Drawer.Screen name="Reportes" children={() => <ModulePage title="Reportes" />} options={{ drawerIcon: ({ color, size }) => <Feather name="bar-chart-2" color={color} size={size} /> }} />
-      <Drawer.Screen name="Usuarios" children={() => <ModulePage title="Usuarios" />} options={{ drawerIcon: ({ color, size }) => <Feather name="users" color={color} size={size} /> }} />
+      <Drawer.Screen name="Usuarios" component={UsersPage} options={{ drawerIcon: ({ color, size }) => <Feather name="users" color={color} size={size} /> }} />
     </Drawer.Navigator>
   );
 }

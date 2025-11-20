@@ -1,8 +1,8 @@
 import React, { useState } from 'react';
 import { View, Text, Image, StyleSheet, Pressable } from 'react-native';
-import Input from '../components/atoms/Input';
-import Button from '../components/atoms/Button';
-import { registerUser } from '../services/api';
+import Input from '../../components/atoms/Input';
+import Button from '../../components/atoms/Button';
+import { registerUser } from '../../services/api';
 import { useNavigation } from '@react-navigation/native';
 
 const DOC_TYPES = [
@@ -61,7 +61,7 @@ export default function RegisterPage() {
 
   return (
     <View style={styles.root}>
-      <Image source={require('../../assets/logo.png')} style={styles.logo} resizeMode="contain" />
+      <Image source={require('../../../assets/logo.png')} style={styles.logo} resizeMode="contain" />
       <View style={styles.card}>
         <Text style={styles.title}>Crear cuenta</Text>
         <Text style={styles.message}>Completa el formulario para crear tu cuenta en AgroTIC.</Text>

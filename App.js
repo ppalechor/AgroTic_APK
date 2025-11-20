@@ -3,9 +3,9 @@ import React from 'react';
 import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { AuthProvider, useAuth } from './src/contexts/AuthContext';
-import LoginPage from './src/pages/LoginPage';
-import ForgotPasswordPage from './src/pages/ForgotPasswordPage';
-import RegisterPage from './src/pages/RegisterPage';
+import LoginPage from './src/pages/auth/LoginPage';
+import ForgotPasswordPage from './src/pages/auth/ForgotPasswordPage';
+import RegisterPage from './src/pages/auth/RegisterPage';
 import AppDrawer from './src/navigation/AppDrawer';
 import { View } from 'react-native';
 

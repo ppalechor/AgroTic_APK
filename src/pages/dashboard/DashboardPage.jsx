@@ -1,8 +1,8 @@
 import React from 'react';
 import { View, Text, StyleSheet, ScrollView } from 'react-native';
-import Button from '../components/atoms/Button';
-import { useAuth } from '../contexts/AuthContext';
-import ImageCarousel from '../components/molecules/ImageCarousel';
+import Button from '../../components/atoms/Button';
+import { useAuth } from '../../contexts/AuthContext';
+import ImageCarousel from '../../components/molecules/ImageCarousel';
 
 export default function DashboardPage({ navigation }) {
   const { user, logout } = useAuth();
@@ -27,9 +27,9 @@ export default function DashboardPage({ navigation }) {
         <View style={styles.cardRight}>
           <ImageCarousel
             images={[
-              require('../../assets/home-hero.jpg'),
-              require('../../assets/home-hero-2.jpg'),
-              require('../../assets/home-hero-3.jpeg'),
+              require('../../../assets/home-hero.jpg'),
+              require('../../../assets/home-hero-2.jpg'),
+              require('../../../assets/home-hero-3.jpeg'),
             ]}
             size={140}
             intervalMs={3000}

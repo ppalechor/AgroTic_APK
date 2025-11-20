@@ -1,9 +1,9 @@
 import React, { useEffect, useState } from 'react';
 import { View, Text, Image, StyleSheet } from 'react-native';
-import LoginForm from '../components/molecules/LoginForm';
+import LoginForm from '../../components/molecules/LoginForm';
 import { useRoute } from '@react-navigation/native';
-import AlertBubble from '../components/molecules/AlertBubble';
-import Button from '../components/atoms/Button';
+import AlertBubble from '../../components/molecules/AlertBubble';
+import Button from '../../components/atoms/Button';
 
 export default function LoginPage({ navigation }) {
   const route = useRoute();
@@ -14,7 +14,7 @@ export default function LoginPage({ navigation }) {
   }, [route?.params]);
   return (
     <View style={styles.root}>
-      <Image source={require('../../assets/logo.png')} style={styles.logo} resizeMode="contain" />
+      <Image source={require('../../../assets/logo.png')} style={styles.logo} resizeMode="contain" />
       <View style={styles.card}>
         <Text style={styles.title}>Iniciar Sesión</Text>
         <Text style={styles.subtitle}>Accede a tu cuenta AgroTIC</Text>

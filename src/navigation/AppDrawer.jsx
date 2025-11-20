@@ -5,7 +5,8 @@ import { View, Image, Platform } from 'react-native';
 const LotsMapPage = require('../pages/cultivos/LotsMapPage').default;
 import DashboardPage from '../pages/dashboard/DashboardPage';
 import ModulePage from '../pages/common/ModulePage';
-import InventoryPage from '../pages/inventario/InventoryPage';
+import CalendarPage from '../pages/calendar/CalendarPage';
+import InventoryPage from '../pages/inventario/InventoryPage'; 
 import AlmacenesPage from '../pages/inventario/AlmacenesPage';
 import CategoriasPage from '../pages/inventario/CategoriasPage';
 import ReportesPage from '../pages/reportes/ReportesPage';
@@ -41,7 +42,7 @@ export default function AppDrawer() {
       <Drawer.Screen name="Gestión de Lotes" component={LotsPage} options={{ drawerIcon: ({ color, size }) => <Feather name="map" color={color} size={size} /> }} />
       <Drawer.Screen name="Mapa de Lotes" component={LotsMapPage} options={{ drawerIcon: ({ color, size }) => <Feather name="map-pin" color={color} size={size} /> }} />
       <Drawer.Screen name="Actividades" component={ActivitiesPage} options={{ drawerIcon: ({ color, size }) => <Feather name="activity" color={color} size={size} /> }} />
-      <Drawer.Screen name="Calendario" children={() => <ModulePage title="Calendario" />} options={{ drawerIcon: ({ color, size }) => <Feather name="calendar" color={color} size={size} /> }} />
+      <Drawer.Screen name="Calendario" component={CalendarPage} options={{ drawerIcon: ({ color, size }) => <Feather name="calendar" color={color} size={size} /> }} />
       <Drawer.Screen name="Gestión de EPA" component={EpasPage} options={{ drawerIcon: ({ color, size }) => <Feather name="package" color={color} size={size} /> }} />
       <Drawer.Screen name="Tratamientos" component={TratamientosPage} options={{ drawerIcon: ({ color, size }) => <Feather name="shield" color={color} size={size} /> }} />
       <Drawer.Screen name="Finanzas" children={() => <ModulePage title="Finanzas" />} options={{ drawerIcon: ({ color, size }) => <Feather name="dollar-sign" color={color} size={size} /> }} />

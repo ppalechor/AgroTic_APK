@@ -3,6 +3,7 @@ import React from 'react';
 import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { AuthProvider, useAuth } from './src/contexts/AuthContext';
+import { AlertProvider } from './src/contexts/AlertContext';
 import LoginPage from './src/pages/auth/LoginPage';
 import ForgotPasswordPage from './src/pages/auth/ForgotPasswordPage';
 import RegisterPage from './src/pages/auth/RegisterPage';
@@ -30,7 +31,9 @@ export default function App() {
   return (
     <View style={{flex:1}}>
       <AuthProvider>
-        <RootNavigator />
+        <AlertProvider>
+          <RootNavigator />
+        </AlertProvider>
       </AuthProvider>
       <StatusBar style="dark" />
     </View>

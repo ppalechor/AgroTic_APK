@@ -1,17 +1,8 @@
 import React from 'react';
-import { View, Text, Platform } from 'react-native';
+import { Text } from 'react-native';
+import MapView, { Polygon, Marker, Polyline, PROVIDER_GOOGLE } from 'react-native-maps';
 
-let MapView, Polygon, Marker;
+// Este archivo (.native.jsx) solo se usa en Android/iOS.
+// Para web existe MapViewComponent.web.jsx.
 
-if (Platform.OS !== 'web') {
-  const maps = require('react-native-maps');
-  MapView = maps.MapView;
-  Polygon = maps.Polygon;
-  Marker = maps.Marker;
-} else {
-  MapView = () => <Text>Mapa no disponible en web</Text>;
-  Polygon = () => null;
-  Marker = () => null;
-}
-
-export { MapView, Polygon, Marker };
+export { MapView, Polygon, Marker, Polyline, PROVIDER_GOOGLE };

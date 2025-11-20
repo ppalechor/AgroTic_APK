@@ -452,3 +452,149 @@ export async function deleteAlmacen(id, token) {
   if (!res.ok) throw new Error('Error eliminando almacén');
   return true;
 }
+
+export const getLotesUrl = () => `${baseUrl}/lotes`;
+
+export async function listLotes(token, params = {}) {
+  const url = new URL(getLotesUrl());
+  Object.entries(params || {}).forEach(([k, v]) => {
+    if (v !== undefined && v !== null && String(v).length) url.searchParams.set(k, String(v));
+  });
+  const res = await fetch(url.toString(), { headers: { Authorization: `Bearer ${token}` } });
+  const ct = res.headers.get('content-type') || '';
+  const data = ct.includes('application/json') ? await res.json() : await res.text();
+  if (!res.ok) throw new Error((data?.message) || 'Error obteniendo lotes');
+  const arr = Array.isArray(data) ? data : Array.isArray(data?.data) ? data.data : Array.isArray(data?.items) ? data.items : [];
+  return arr;
+}
+
+export async function createLote(payload, token) {
+  const res = await fetch(getLotesUrl(), {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+    body: JSON.stringify(payload),
+  });
+  const ct = res.headers.get('content-type') || '';
+  const data = ct.includes('application/json') ? await res.json() : await res.text();
+  if (!res.ok) throw new Error((data?.message) || 'Error creando lote');
+  return data;
+}
+
+export async function updateLote(id, payload, token) {
+  const res = await fetch(`${getLotesUrl()}/${id}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+    body: JSON.stringify(payload),
+  });
+  const ct = res.headers.get('content-type') || '';
+  const data = ct.includes('application/json') ? await res.json() : await res.text();
+  if (!res.ok) throw new Error((data?.message) || 'Error actualizando lote');
+  return data;
+}
+
+export async function deleteLote(id, token) {
+  const res = await fetch(`${getLotesUrl()}/${id}`, { method: 'DELETE', headers: { Authorization: `Bearer ${token}` } });
+  if (!res.ok) throw new Error('Error eliminando lote');
+  return true;
+}
+
+export async function getMapData(token) {
+  const res = await fetch(`${getLotesUrl()}/map-data`, { headers: { Authorization: `Bearer ${token}` } });
+  const ct = res.headers.get('content-type') || '';
+  const data = ct.includes('application/json') ? await res.json() : await res.text();
+  if (!res.ok) throw new Error((data?.message) || 'Error obteniendo datos del mapa');
+  const arr = Array.isArray(data) ? data : Array.isArray(data?.data) ? data.data : [];
+  return arr;
+}
+
+export async function listCultivos(token, params = {}) {
+  const url = new URL(getCultivosUrl());
+  Object.entries(params || {}).forEach(([k, v]) => {
+    if (v !== undefined && v !== null && String(v).length) url.searchParams.set(k, String(v));
+  });
+  const res = await fetch(url.toString(), { headers: { Authorization: `Bearer ${token}` } });
+  const ct = res.headers.get('content-type') || '';
+  const data = ct.includes('application/json') ? await res.json() : await res.text();
+  if (!res.ok) throw new Error((data?.message) || 'Error obteniendo cultivos');
+  if (Array.isArray(data)) return { items: data, meta: { totalItems: data.length, totalPages: 1, currentPage: 1 } };
+  if (Array.isArray(data?.data)) return { items: data.data, meta: data.meta || { totalItems: data.data.length, totalPages: 1, currentPage: 1 } };
+  if (Array.isArray(data?.items)) return { items: data.items, meta: data.meta || { totalItems: data.items.length, totalPages: 1, currentPage: 1 } };
+  return { items: [], meta: { totalItems: 0, totalPages: 1, currentPage: 1 } };
+}
+
+export async function createCultivo(payload, token) {
+  const res = await fetch(getCultivosUrl(), {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+    body: JSON.stringify(payload),
+  });
+  const ct = res.headers.get('content-type') || '';
+  const data = ct.includes('application/json') ? await res.json() : await res.text();
+  if (!res.ok) throw new Error((data?.message) || 'Error creando cultivo');
+  return data;
+}
+
+export async function updateCultivo(id, payload, token) {
+  const res = await fetch(`${getCultivosUrl()}/${id}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+    body: JSON.stringify(payload),
+  });
+  const ct = res.headers.get('content-type') || '';
+  const data = ct.includes('application/json') ? await res.json() : await res.text();
+  if (!res.ok) throw new Error((data?.message) || 'Error actualizando cultivo');
+  return data;
+}
+
+export async function deleteCultivo(id, token) {
+  const res = await fetch(`${getCultivosUrl()}/${id}`, { method: 'DELETE', headers: { Authorization: `Bearer ${token}` } });
+  if (!res.ok) throw new Error('Error eliminando cultivo');
+  return true;
+}
+
+export const getActividadesUrl = () => `${baseUrl}/actividades`;
+
+export async function listActividades(token, params = {}) {
+  const url = new URL(getActividadesUrl());
+  Object.entries(params || {}).forEach(([k, v]) => {
+    if (v !== undefined && v !== null && String(v).length) url.searchParams.set(k, String(v));
+  });
+  const res = await fetch(url.toString(), { headers: { Authorization: `Bearer ${token}` } });
+  const ct = res.headers.get('content-type') || '';
+  const data = ct.includes('application/json') ? await res.json() : await res.text();
+  if (!res.ok) throw new Error((data?.message) || 'Error obteniendo actividades');
+  if (Array.isArray(data)) return { items: data, meta: { totalItems: data.length, totalPages: 1, currentPage: 1 } };
+  if (Array.isArray(data?.data)) return { items: data.data, meta: data.meta || { totalItems: data.data.length, totalPages: 1, currentPage: 1 } };
+  if (Array.isArray(data?.items)) return { items: data.items, meta: data.meta || { totalItems: data.items.length, totalPages: 1, currentPage: 1 } };
+  return { items: [], meta: { totalItems: 0, totalPages: 1, currentPage: 1 } };
+}
+
+export async function createActividad(payload, token) {
+  const res = await fetch(getActividadesUrl(), {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+    body: JSON.stringify(payload),
+  });
+  const ct = res.headers.get('content-type') || '';
+  const data = ct.includes('application/json') ? await res.json() : await res.text();
+  if (!res.ok) throw new Error((data?.message) || 'Error creando actividad');
+  return data;
+}
+
+export async function updateActividad(id, payload, token) {
+  const res = await fetch(`${getActividadesUrl()}/${id}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+    body: JSON.stringify(payload),
+  });
+  const ct = res.headers.get('content-type') || '';
+  const data = ct.includes('application/json') ? await res.json() : await res.text();
+  if (!res.ok) throw new Error((data?.message) || 'Error actualizando actividad');
+  return data;
+}
+
+export async function deleteActividad(id, token) {
+  const res = await fetch(`${getActividadesUrl()}/${id}`, { method: 'DELETE', headers: { Authorization: `Bearer ${token}` } });
+  if (!res.ok) throw new Error('Error eliminando actividad');
+  return true;
+}

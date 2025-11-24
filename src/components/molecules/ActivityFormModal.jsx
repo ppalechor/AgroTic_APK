@@ -1,7 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, TextInput, Pressable, StyleSheet, Modal, ScrollView, ActivityIndicator } from 'react-native';
+import { View, Text, TextInput, Pressable, StyleSheet, Modal, ScrollView, ActivityIndicator, Image } from 'react-native';
+import { Feather } from '@expo/vector-icons';
 import { Picker } from '@react-native-picker/picker';
 import DateTimePicker from '@react-native-community/datetimepicker';
+import { useAuth } from '../../contexts/AuthContext';
+import { listActividadFotos, deleteActividadFoto } from '../../services/api';
 
 const activityTypes = [
   { value: 'siembra', label: 'Siembra' },
@@ -20,6 +23,7 @@ const statusOptions = [
 ];
 
 export default function ActivityFormModal({ visible, onClose, onSubmit, activity, crops = [], loading }) {
+  const { token } = useAuth();
   const [formData, setFormData] = useState({
     tipo_actividad: '',
     fecha: null,
@@ -29,6 +33,8 @@ export default function ActivityFormModal({ visible, onClose, onSubmit, activity
     id_cultivo: ''
   });
   const [showDatePicker, setShowDatePicker] = useState(false);
+  const [photos, setPhotos] = useState([]);
+  const [photoError, setPhotoError] = useState('');
 
   useEffect(() => {
     if (activity) {
@@ -40,6 +46,20 @@ export default function ActivityFormModal({ visible, onClose, onSubmit, activity
         estado: activity.estado || 'pendiente',
         id_cultivo: activity.id_cultivo || ''
       });
+      (async () => {
+        try {
+          setPhotoError('');
+          const id = activity.id_actividad || activity.id;
+          if (id) {
+            const arr = await listActividadFotos(id, token);
+            setPhotos(arr.map((f) => ({ id: f.id, uri: f.url_imagen })));
+          } else {
+            setPhotos([]);
+          }
+        } catch (e) {
+          setPhotos([]);
+        }
+      })();
     } else {
       setFormData({
         tipo_actividad: '',
@@ -49,6 +69,7 @@ export default function ActivityFormModal({ visible, onClose, onSubmit, activity
         estado: 'pendiente',
         id_cultivo: ''
       });
+      setPhotos([]);
     }
   }, [activity, visible]);
 
@@ -137,6 +158,40 @@ export default function ActivityFormModal({ visible, onClose, onSubmit, activity
               multiline
               numberOfLines={3}
             />
+            {activity ? (
+              <>
+                <Text style={styles.sectionTitle}>Imágenes</Text>
+                {Array.isArray(photos) && photos.length > 0 ? (
+                  <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginTop: 8 }}>
+                    {photos.map((p, idx) => (
+                      <View key={idx} style={styles.photoWrap}>
+                        <Image source={{ uri: p.uri }} style={styles.photoImg} />
+                        {p.id ? (
+                          <Pressable
+                            style={styles.photoDel}
+                            onPress={async () => {
+                              try {
+                                const id = activity?.id_actividad || activity?.id;
+                                await deleteActividadFoto(p.id, token);
+                                const arr = await listActividadFotos(id, token);
+                                setPhotos(arr.map((f) => ({ id: f.id, uri: f.url_imagen })));
+                              } catch (e) {
+                                setPhotoError(e?.message || 'No se pudo eliminar la foto');
+                              }
+                            }}
+                          >
+                            <Feather name="trash-2" size={14} color="#fff" />
+                          </Pressable>
+                        ) : null}
+                      </View>
+                    ))}
+                  </ScrollView>
+                ) : (
+                  <Text style={styles.detailsMuted}>No hay fotos para esta actividad.</Text>
+                )}
+                {photoError ? <Text style={[styles.detailsMuted, { color: '#d32f2f' }]}>{photoError}</Text> : null}
+              </>
+            ) : null}
           </ScrollView>
           <View style={styles.actions}>
             <Pressable style={[styles.btn, styles.btnSecondary]} onPress={onClose}>
@@ -177,4 +232,9 @@ const styles = StyleSheet.create({
   btnSecondaryText: { color: '#334155', fontSize: 14 },
   btnPrimary: { backgroundColor: '#16A34A' },
   btnPrimaryText: { color: '#fff', fontSize: 14 },
+  sectionTitle: { fontSize: 16, fontWeight: '700', color: '#0f172a', marginTop: 8 },
+  detailsMuted: { fontSize: 13, color: '#64748b' },
+  photoWrap: { width: 96, height: 96, borderRadius: 8, marginRight: 8, borderWidth: 1, borderColor: '#E5E7EB', overflow: 'hidden' },
+  photoImg: { width: '100%', height: '100%' },
+  photoDel: { position: 'absolute', top: 4, right: 4, backgroundColor: 'rgba(0,0,0,0.5)', borderRadius: 10, padding: 4 },
 });

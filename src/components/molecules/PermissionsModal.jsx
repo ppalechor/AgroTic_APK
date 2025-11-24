@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { View, Text, Modal, TextInput, Pressable, StyleSheet, FlatList, Alert } from 'react-native';
 import permissionService from '../../services/permissionService';
 import { useAuth } from '../../contexts/AuthContext';
@@ -24,6 +24,13 @@ export default function PermissionsModal({ visible, onClose, user }) {
   const [searchQuery, setSearchQuery] = useState('');
   const [estadoFilter, setEstadoFilter] = useState('all'); // all | activo | inactivo
   const [assignedFilter, setAssignedFilter] = useState('all'); // all | assigned | not_assigned
+  const [recursoFilter, setRecursoFilter] = useState('');
+  const [accionFilter, setAccionFilter] = useState('');
+  const [openResourcePicker, setOpenResourcePicker] = useState(false);
+  const [openActionPicker, setOpenActionPicker] = useState(false);
+  const listRef = useRef(null);
+  const [highlightKey, setHighlightKey] = useState('');
+  const [highlightUntil, setHighlightUntil] = useState(0);
 
   useEffect(() => {
     if (!visible) return;
@@ -73,6 +80,13 @@ export default function PermissionsModal({ visible, onClose, user }) {
     return out;
   }, [normalizedPerms]);
 
+  const availableActionsForFilter = useMemo(() => {
+    if (recursoFilter && actionsByResource[recursoFilter]) return actionsByResource[recursoFilter];
+    const setAll = new Set();
+    Object.values(actionsByResource).forEach(arr => arr.forEach(a => setAll.add(a)));
+    return Array.from(setAll).sort();
+  }, [recursoFilter, actionsByResource]);
+
   const selectedKey = recurso && accion ? `${recurso}:${accion}` : '';
   const existingPerm = useMemo(() => normalizedPerms.find(p => p.clave === selectedKey), [normalizedPerms, selectedKey]);
 
@@ -90,9 +104,36 @@ export default function PermissionsModal({ visible, onClose, user }) {
       const isAssigned = assignedSet.has(p.clave);
       if (assignedFilter === 'assigned' && !isAssigned) return false;
       if (assignedFilter === 'not_assigned' && isAssigned) return false;
+      if (recursoFilter && p.recurso !== recursoFilter) return false;
+      if (accionFilter && p.accion !== accionFilter) return false;
       return true;
     });
-  }, [normalizedPerms, searchQuery, estadoFilter, assignedFilter, assignedSet]);
+  }, [normalizedPerms, searchQuery, estadoFilter, assignedFilter, assignedSet
+, recursoFilter, accionFilter]);
+
+  useEffect(() => {
+    const key = (recursoFilter || recurso) && (accionFilter || accion) ? `${recursoFilter || recurso}:${accionFilter || accion}` : '';
+    if (!key) return;
+    const idx = filteredPerms.findIndex(it => (it.clave === key) || (it.recurso === (recursoFilter || recurso) && it.accion === (accionFilter || accion)));
+    if (idx >= 0) {
+      setHighlightKey(key);
+      setHighlightUntil(Date.now() + 2000);
+      try {
+        listRef.current?.scrollToIndex({ index: idx, animated: true });
+      } catch {}
+    }
+  }, [recursoFilter, accionFilter, recurso, accion, filteredPerms]);
+
+  useEffect(() => {
+    if (!highlightKey) return;
+    const id = setInterval(() => {
+      if (Date.now() > highlightUntil) {
+        setHighlightKey('');
+        setHighlightUntil(0);
+      }
+    }, 300);
+    return () => clearInterval(id);
+  }, [highlightKey, highlightUntil]);
 
   const handleCreate = async () => {
     if (!recurso || !accion) return Alert.alert('Atención', 'Seleccione recurso y acción');
@@ -122,6 +163,20 @@ export default function PermissionsModal({ visible, onClose, user }) {
     } finally { setLoadingId(null); }
   };
 
+  const handleAssignItem = async (perm) => {
+    if (!perm?.id_permiso) return;
+    setLoadingId(perm.id_permiso);
+    try {
+      await permissionService.assign({ id_usuario: user.id, id_permiso: perm.id_permiso });
+      Alert.alert('Éxito', 'Permiso asignado');
+      const uk = await permissionService.getUserKeys(user.id);
+      setUserKeys(uk || []);
+      if (authUser?.id === user?.id) refreshPermissions(authUser.id);
+    } catch (e) {
+      Alert.alert('Error', e?.message || 'No se pudo asignar');
+    } finally { setLoadingId(null); }
+  };
+
   const handleRevoke = async () => {
     if (!existingPerm) return;
     setLoadingId(existingPerm.id_permiso);
@@ -136,15 +191,37 @@ export default function PermissionsModal({ visible, onClose, user }) {
     } finally { setLoadingId(null); }
   };
 
+  const handleRevokeItem = async (perm) => {
+    if (!perm?.id_permiso) return;
+    setLoadingId(perm.id_permiso);
+    try {
+      await permissionService.revoke({ id_usuario: user.id, id_permiso: perm.id_permiso });
+      Alert.alert('Éxito', 'Permiso revocado');
+      const uk = await permissionService.getUserKeys(user.id);
+      setUserKeys(uk || []);
+      if (authUser?.id === user?.id) refreshPermissions(authUser.id);
+    } catch (e) {
+      Alert.alert('Error', e?.message || 'No se pudo revocar');
+    } finally { setLoadingId(null); }
+  };
+
   const renderPerm = ({ item }) => {
     const displayName = (item.nombre_permiso && item.nombre_permiso.trim() !== '') ? item.nombre_permiso : (item.clave || `${item.recurso}:${item.accion}`);
     const assigned = assignedSet.has(item.clave);
+    const isHighlighted = highlightKey === item.clave;
     return (
-      <View style={styles.permRow}>
+      <View style={[styles.permRow, isHighlighted ? styles.highlightRow : null]}>
         <Text style={styles.permCell}>{item.recurso}</Text>
         <Text style={styles.permCell}>{item.accion}</Text>
         <Text style={[styles.permCell, { flex: 2 }]}>{displayName}</Text>
         <Text style={styles.permCell}>{item.activo ? 'Activo' : 'Inactivo'}</Text>
+        <Pressable
+          style={[styles.tag, assigned ? styles.tagAssigned : styles.tagUnassigned]}
+          onPress={() => { assigned ? handleRevokeItem(item) : handleAssignItem(item); }}
+          disabled={loadingId === item.id_permiso}
+        >
+          <Text style={styles.tagText}>{assigned ? 'Asignado' : 'No asignado'}</Text>
+        </Pressable>
         {assigned ? (
           <Pressable style={[styles.smallBtn, styles.outlineDanger]} onPress={handleRevoke} disabled={loadingId === item.id_permiso}>
             <Text style={styles.smallBtnText}>{loadingId === item.id_permiso ? 'Revocando...' : 'Revocar'}</Text>
@@ -193,6 +270,12 @@ export default function PermissionsModal({ visible, onClose, user }) {
             <Pressable style={styles.filterBtn} onPress={() => setAssignedFilter(assignedFilter === 'all' ? 'assigned' : assignedFilter === 'assigned' ? 'not_assigned' : 'all')}>
               <Text style={styles.filterBtnText}>{assignedFilter === 'all' ? 'Asignación: Todos' : assignedFilter === 'assigned' ? 'Asignación: Asignados' : 'Asignación: No asignados'}</Text>
             </Pressable>
+            <Pressable style={styles.filterBtn} onPress={() => setOpenResourcePicker(true)}>
+              <Text style={styles.filterBtnText}>{recursoFilter ? `Recurso: ${recursoFilter}` : 'Recurso: Todos'}</Text>
+            </Pressable>
+            <Pressable style={styles.filterBtn} onPress={() => setOpenActionPicker(true)}>
+              <Text style={styles.filterBtnText}>{accionFilter ? `Acción: ${accionFilter}` : 'Acción: Todas'}</Text>
+            </Pressable>
           </View>
 
           <View style={{ height: 1, backgroundColor: '#E4E7EC', marginVertical: 8 }} />
@@ -204,13 +287,77 @@ export default function PermissionsModal({ visible, onClose, user }) {
             <Text style={[styles.headerCell]}>Asignado</Text>
           </View>
 
-          <FlatList data={filteredPerms} renderItem={renderPerm} keyExtractor={(it) => String(it.id_permiso || it.id || `${it.recurso}:${it.accion}`)} style={{ marginTop: 8 }} />
+          <FlatList
+            ref={listRef}
+            data={filteredPerms}
+            renderItem={renderPerm}
+            keyExtractor={(it) => String(it.id_permiso || it.id || `${it.recurso}:${it.accion}`)}
+            style={{ marginTop: 8 }}
+            getItemLayout={(data, index) => ({ length: 44, offset: 44 * index, index })}
+          />
 
           <View style={styles.footerActions}>
             <Pressable style={[styles.btn, styles.primaryFull]} onPress={onClose}><Text style={styles.btnText}>CERRAR</Text></Pressable>
           </View>
         </View>
       </View>
+      <Modal visible={openResourcePicker} transparent animationType="fade" onRequestClose={() => setOpenResourcePicker(false)}>
+        <View style={styles.pickerOverlay}>
+          <View style={styles.pickerCard}>
+            <Text style={styles.pickerTitle}>Filtrar por Recurso</Text>
+            <FlatList
+              data={[{ value: '', label: 'Todos' }, ...resources.map(r => ({ value: r, label: r }))]}
+              keyExtractor={(it) => it.value === '' ? 'all' : it.value}
+              renderItem={({ item }) => (
+                <Pressable
+                  style={styles.pickerItem}
+                  onPress={() => {
+                    setRecursoFilter(item.value);
+                    if (!item.value) {
+                      setRecurso('');
+                      setAccionFilter('');
+                      setAccion('');
+                    } else {
+                      setRecurso(item.value);
+                      setAccionFilter('');
+                      setAccion('');
+                    }
+                    setOpenResourcePicker(false);
+                  }}
+                >
+                  <Text style={styles.pickerItemText}>{item.label}</Text>
+                </Pressable>
+              )}
+            />
+            <Pressable style={[styles.btn, styles.close]} onPress={() => setOpenResourcePicker(false)}><Text style={styles.btnText}>Cerrar</Text></Pressable>
+          </View>
+        </View>
+      </Modal>
+      <Modal visible={openActionPicker} transparent animationType="fade" onRequestClose={() => setOpenActionPicker(false)}>
+        <View style={styles.pickerOverlay}>
+          <View style={styles.pickerCard}>
+            <Text style={styles.pickerTitle}>Filtrar por Acción</Text>
+            <FlatList
+              data={[{ value: '', label: 'Todas' }, ...availableActionsForFilter.map(a => ({ value: a, label: a }))]}
+              keyExtractor={(it) => it.value === '' ? 'all' : it.value}
+              renderItem={({ item }) => (
+                <Pressable
+                  style={styles.pickerItem}
+                  onPress={() => {
+                    setAccionFilter(item.value);
+                    setAccion(item.value);
+                    if (!recurso && recursoFilter) setRecurso(recursoFilter);
+                    setOpenActionPicker(false);
+                  }}
+                >
+                  <Text style={styles.pickerItemText}>{item.label}</Text>
+                </Pressable>
+              )}
+            />
+            <Pressable style={[styles.btn, styles.close]} onPress={() => setOpenActionPicker(false)}><Text style={styles.btnText}>Cerrar</Text></Pressable>
+          </View>
+        </View>
+      </Modal>
     </Modal>
   );
 }
@@ -251,4 +398,17 @@ const styles = StyleSheet.create({
   ,
   footerActions: { marginTop: 8, alignItems: 'flex-end' },
   primaryFull: { backgroundColor: '#16A34A', paddingHorizontal: 16, paddingVertical: 10, borderRadius: 10 }
+  ,
+  pickerOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.3)', alignItems: 'center', justifyContent: 'center' },
+  pickerCard: { width: '88%', maxHeight: '70%', backgroundColor: '#fff', borderRadius: 12, padding: 12 },
+  pickerTitle: { fontSize: 15, fontWeight: '700', color: '#0f172a', marginBottom: 8 },
+  pickerItem: { paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: '#F1F5F9' },
+  pickerItemText: { fontSize: 14, color: '#334155' }
+  ,
+  highlightRow: { backgroundColor: '#FEF9C3' }
+  ,
+  tag: { paddingHorizontal: 8, paddingVertical: 4, borderRadius: 12, alignSelf: 'flex-start' },
+  tagAssigned: { backgroundColor: '#D1FAE5', borderWidth: 1, borderColor: '#10B981' },
+  tagUnassigned: { backgroundColor: '#F3F4F6', borderWidth: 1, borderColor: '#CBD5E1' },
+  tagText: { fontSize: 12, color: '#0f172a' }
 });

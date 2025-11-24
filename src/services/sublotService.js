@@ -35,66 +35,6 @@ const sublotService = {
     }
   },
 
-  updateCoordinates: async (token, id, geometry) => {
-    try {
-      // 1) Intento PATCH con campo { coordenadas }
-      const body1 = { coordenadas: geometry };
-      try {
-        const r1 = await fetch(`${baseUrl}/sublotes/${id}`, {
-          method: 'PATCH',
-          headers: {
-            'Content-Type': 'application/json',
-            ...getAuthHeader(token)
-          },
-          body: JSON.stringify(body1)
-        });
-        if (r1.ok) {
-          const data = await r1.json();
-          return data;
-        }
-      } catch (e1) {
-        // continuar con siguientes intentos
-      }
-
-      // 2) Intento POST a /coordenadas
-      try {
-        const r2 = await fetch(`${baseUrl}/sublotes/${id}/coordenadas`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            ...getAuthHeader(token)
-          },
-          body: JSON.stringify(geometry)
-        });
-        if (r2.ok) {
-          const data = await r2.json();
-          return data;
-        }
-      } catch (e2) {
-        // continuar con siguiente intento
-      }
-
-      // 3) Fallback PUT a /coordenadas
-      const r3 = await fetch(`${baseUrl}/sublotes/${id}/coordenadas`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-          ...getAuthHeader(token)
-        },
-        body: JSON.stringify(geometry)
-      });
-      if (!r3.ok) {
-        const data = await r3.json().catch(() => ({}));
-        throw new Error(data?.message || 'Error al actualizar coordenadas del sublote');
-      }
-      const data = await r3.json();
-      return data;
-    } catch (error) {
-      console.error('Error al actualizar coordenadas del sublote:', error);
-      throw error;
-    }
-  },
-
   getSublotById: async (token, id) => {
     try {
       const res = await fetch(`${baseUrl}/sublotes/${id}`, {

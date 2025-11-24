@@ -58,14 +58,9 @@ const lotService = {
       console.log('[lotService] Datos recibidos para crear:', lotData);
 
       const { nombre_lote, descripcion, activo } = lotData;
-      const nombreTrim = String(nombre_lote || '').trim();
-      const descripcionTrim = String(descripcion || '').trim();
-      if (nombreTrim.length < 1 || descripcionTrim.length < 1) {
-        throw new Error('Nombre y descripción son requeridos');
-      }
       const filteredData = {
-        nombre_lote: nombreTrim,
-        descripcion: descripcionTrim,
+        nombre_lote: String(nombre_lote),
+        descripcion: String(descripcion),
         activo: Boolean(activo !== undefined ? activo : true)
       };
 

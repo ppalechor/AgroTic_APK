@@ -24,7 +24,7 @@ function ConfirmModal({ visible, onCancel, onConfirm, text }) {
 }
 
 export default function UsersPage() {
-  const { token } = useAuth();
+  const { token, user, permissionKeys, refreshPermissions } = useAuth();
   const [query, setQuery] = useState('');
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -51,10 +51,17 @@ export default function UsersPage() {
   };
 
   useEffect(() => { fetchData(); }, []);
+  useEffect(() => { if (token) { try { refreshPermissions(); } catch {} } }, [token]);
   useEffect(() => {
     const id = setTimeout(fetchData, 400);
     return () => clearTimeout(id);
   }, [query]);
+
+  const permSet = useMemo(() => new Set((permissionKeys || []).map(k => String(k).toLowerCase())), [permissionKeys]);
+  const isAdmin = useMemo(() => String(user?.id_rol?.nombre_rol || user?.nombre_rol || user?.rol || '').toLowerCase() === 'administrador', [user]);
+  const canEdit = isAdmin || permSet.has('usuarios:*') || permSet.has('usuarios:editar');
+  const canDelete = isAdmin || permSet.has('usuarios:*') || permSet.has('usuarios:eliminar');
+  const canViewPerms = isAdmin || permSet.has('permisos:*') || permSet.has('permisos:ver') || permSet.has('permisos:asignar');
 
   const renderItem = ({ item }) => (
     <View style={styles.row}>
@@ -68,9 +75,21 @@ export default function UsersPage() {
         </View>
       </View>
       <View style={[styles.cell, styles.actions]}>
-        <Pressable style={styles.iconBtn} onPress={() => { setToEdit(item); setOpenEdit(true); }}><Feather name="edit-2" size={16} color="#16A34A" /></Pressable>
-        <Pressable style={styles.iconBtn} onPress={() => { setPermUser(item); setOpenPermissions(true); }}><Feather name="key" size={16} color="#64748b" /></Pressable>
-        <Pressable style={styles.iconBtn} onPress={() => { setToDelete(item); setOpenConfirm(true); }}><Feather name="trash-2" size={16} color="#ef4444" /></Pressable>
+        {canEdit && (
+          <Pressable style={styles.iconBtn} onPress={() => { setToEdit(item); setOpenEdit(true); }}>
+            <Feather name="edit-2" size={16} color="#16A34A" />
+          </Pressable>
+        )}
+        {canViewPerms && (
+          <Pressable style={styles.iconBtn} onPress={() => { setPermUser(item); setOpenPermissions(true); }}>
+            <Feather name="key" size={16} color="#64748b" />
+          </Pressable>
+        )}
+        {canDelete && (
+          <Pressable style={styles.iconBtn} onPress={() => { setToDelete(item); setOpenConfirm(true); }}>
+            <Feather name="trash-2" size={16} color="#ef4444" />
+          </Pressable>
+        )}
       </View>
     </View>
   );

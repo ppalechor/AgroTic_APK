@@ -85,16 +85,6 @@ export default function CalendarPage() {
     return list;
   }, [events, filters.id_cultivo]);
 
-  // Devuelve el nombre del cultivo a partir del id_cultivo
-  const getCropName = (ev) => {
-    const id = Number(ev?.id_cultivo ?? ev?.cultivo_id ?? ev?.cultivoId ?? ev?.cultivo?.id);
-    if (!Number.isNaN(id) && id > 0) {
-      const c = crops.find((x) => Number(x.id) === id || Number(x.id_cultivo) === id);
-      return c?.nombre_cultivo || c?.displayName || c?.tipo_cultivo || 'N/A';
-    }
-    return 'N/A';
-  };
-
   const markedDates = useMemo(() => {
     const marks = {};
     const colors = { actividad: '#2080FE', siembra: '#16A34A', cosecha: '#FFB020' };
@@ -264,7 +254,7 @@ export default function CalendarPage() {
             </View>
             <View style={styles.modalBody}>
               <View style={styles.detailRow}><Text style={styles.detailLabel}>Fecha</Text><Text style={styles.detailValue}>{selectedEvent?.fecha ? new Date(selectedEvent.fecha).toLocaleDateString() : 'N/A'}</Text></View>
-              <View style={styles.detailRow}><Text style={styles.detailLabel}>Cultivo</Text><Text style={styles.detailValue}>{getCropName(selectedEvent || {})}</Text></View>
+              <View style={styles.detailRow}><Text style={styles.detailLabel}>Cultivo</Text><Text style={styles.detailValue}>{selectedEvent?.nombre_cultivo || selectedEvent?.cultivo || 'N/A'}</Text></View>
               <View style={styles.detailRow}><Text style={styles.detailLabel}>Descripción</Text><Text style={styles.detailValue}>{selectedEvent?.descripcion || selectedEvent?.titulo || 'N/A'}</Text></View>
               <View style={styles.detailRow}><Text style={styles.detailLabel}>Estado</Text><Text style={styles.detailValue}>{selectedEvent?.estado || 'N/A'}</Text></View>
               <View style={styles.detailRow}><Text style={styles.detailLabel}>Responsable</Text><Text style={styles.detailValue}>{selectedEvent?.responsable || selectedEvent?.usuario || 'N/A'}</Text></View>
@@ -295,7 +285,7 @@ export default function CalendarPage() {
                   </View>
                   <View style={styles.modalBody}>
                     <View style={styles.detailRow}><Text style={styles.detailLabel}>Fecha</Text><Text style={styles.detailValue}>{new Date(ev.fecha).toLocaleDateString('es-ES')}</Text></View>
-                    <View style={styles.detailRow}><Text style={styles.detailLabel}>Cultivo</Text><Text style={styles.detailValue}>{getCropName(ev)}</Text></View>
+                    <View style={styles.detailRow}><Text style={styles.detailLabel}>Cultivo</Text><Text style={styles.detailValue}>{ev?.nombre_cultivo || ev?.cultivo || 'N/A'}</Text></View>
                     <View style={styles.detailRow}><Text style={styles.detailLabel}>Descripción</Text><Text style={styles.detailValue}>{ev?.descripcion || ev?.titulo || 'N/A'}</Text></View>
                     <View style={styles.detailRow}><Text style={styles.detailLabel}>Estado</Text><Text style={styles.detailValue}>{ev?.estado || 'N/A'}</Text></View>
                     <View style={styles.detailRow}><Text style={styles.detailLabel}>Responsable</Text><Text style={styles.detailValue}>{ev?.responsable || ev?.usuario || 'N/A'}</Text></View>

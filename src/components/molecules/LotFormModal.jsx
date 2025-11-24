@@ -7,7 +7,6 @@ export default function LotFormModal({ visible, onClose, onSubmit, lot, loading 
     descripcion: '',
     activo: true
   });
-  const [errors, setErrors] = useState({ nombre: '', descripcion: '' });
 
   useEffect(() => {
     if (lot) {
@@ -27,22 +26,13 @@ export default function LotFormModal({ visible, onClose, onSubmit, lot, loading 
 
   const handleChange = (field, value) => {
     setFormData(prev => ({ ...prev, [field]: value }));
-    setErrors(prev => ({ ...prev, [field]: '' }));
   };
 
   const handleSubmit = async () => {
-    const nombre = String(formData.nombre || '').trim();
-    const descripcion = String(formData.descripcion || '').trim();
-    const newErrors = { nombre: '', descripcion: '' };
-    if (nombre.length < 1) newErrors.nombre = 'El nombre es requerido';
-    if (descripcion.length < 1) newErrors.descripcion = 'La descripción es requerida';
-    setErrors(newErrors);
-    if (newErrors.nombre || newErrors.descripcion) return;
-
     const payload = {
-      nombre_lote: nombre,
-      descripcion: descripcion,
-      activo: !!formData.activo
+      nombre_lote: formData.nombre,
+      descripcion: formData.descripcion,
+      activo: formData.activo
     };
     await onSubmit(payload);
   };
@@ -59,7 +49,6 @@ export default function LotFormModal({ visible, onClose, onSubmit, lot, loading 
               value={formData.nombre}
               onChangeText={(value) => handleChange('nombre', value)}
             />
-            {Boolean(errors.nombre) && (<Text style={styles.errorText}>{errors.nombre}</Text>)}
             <TextInput
               style={[styles.input, styles.textArea]}
               placeholder="Descripción"
@@ -68,7 +57,6 @@ export default function LotFormModal({ visible, onClose, onSubmit, lot, loading 
               multiline
               numberOfLines={3}
             />
-            {Boolean(errors.descripcion) && (<Text style={styles.errorText}>{errors.descripcion}</Text>)}
             <View style={styles.switchContainer}>
               <Text style={styles.switchLabel}>Activo</Text>
               <Switch
@@ -81,7 +69,7 @@ export default function LotFormModal({ visible, onClose, onSubmit, lot, loading 
             <Pressable style={[styles.btn, styles.btnSecondary]} onPress={onClose}>
               <Text style={styles.btnSecondaryText}>Cancelar</Text>
             </Pressable>
-            <Pressable style={[styles.btn, styles.btnPrimary, (!String(formData.nombre||'').trim() || !String(formData.descripcion||'').trim()) && styles.btnDisabled]} onPress={handleSubmit} disabled={loading}>
+            <Pressable style={[styles.btn, styles.btnPrimary]} onPress={handleSubmit} disabled={loading}>
               {loading ? <ActivityIndicator color="#fff" /> : <Text style={styles.btnPrimaryText}>{lot ? 'Actualizar' : 'Crear'}</Text>}
             </Pressable>
           </View>
@@ -106,6 +94,4 @@ const styles = StyleSheet.create({
   btnSecondaryText: { color: '#334155', fontSize: 14 },
   btnPrimary: { backgroundColor: '#16A34A' },
   btnPrimaryText: { color: '#fff', fontSize: 14 },
-  btnDisabled: { opacity: 0.6 },
-  errorText: { color: '#DC2626', fontSize: 12, marginTop: -8, marginBottom: 8 },
 });

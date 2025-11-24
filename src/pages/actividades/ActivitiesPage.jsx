@@ -1,10 +1,10 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { View, Text, TextInput, FlatList, Pressable, StyleSheet, Modal, ActivityIndicator, ScrollView } from 'react-native';
-import { Picker } from '@react-native-picker/picker';
+import { View, Text, TextInput, FlatList, Pressable, StyleSheet, Modal, ActivityIndicator, ScrollView, Image } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 import { useAuth } from '../../contexts/AuthContext';
-import { listActividades, createActividad, updateActividad, deleteActividad, listCultivos } from '../../services/api';
+import { baseUrl, listActividades, createActividad, updateActividad, deleteActividad, listCultivos, uploadActividadFoto, listActividadFotos, deleteActividadFoto } from '../../services/api';
 import ActivityFormModal from '../../components/molecules/ActivityFormModal';
+import { Picker } from '@react-native-picker/picker';
 
 function ConfirmModal({ visible, onCancel, onConfirm, text }) {
   return (
@@ -23,6 +23,62 @@ function ConfirmModal({ visible, onCancel, onConfirm, text }) {
   );
 }
 
+function DetailsModal({ visible, onClose, item, statusConfig, photos = [], onDeletePhoto }) {
+  return (
+    <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
+      <View style={styles.modalOverlay}>
+        <View style={styles.modalCard}>
+          <Text style={styles.modalTitle}>Detalles de Actividad</Text>
+          <ScrollView style={{ maxHeight: 360 }} contentContainerStyle={{ gap: 8 }}>
+            <Text style={styles.detailsHeader}>{item?.tipo_actividad || 'Actividad'}</Text>
+            <Text style={styles.detailsSub}>{item?.fecha ? new Date(item.fecha).toLocaleDateString() : '—'}</Text>
+            <View style={styles.detailRow}><Text style={styles.detailLabel}>Responsable</Text><Text style={styles.detailValue}>{item?.responsable || '—'}</Text></View>
+            <View style={styles.detailRow}><Text style={styles.detailLabel}>Detalles</Text><Text style={styles.detailValue}>{item?.detalles || '—'}</Text></View>
+            <View style={styles.detailRow}>
+              <Text style={styles.detailLabel}>Estado</Text>
+              <View style={[styles.statusChip, { backgroundColor: statusConfig[item?.estado]?.bgColor || '#f0f0f0' }]}>
+                <Text style={[styles.statusText, { color: statusConfig[item?.estado]?.color || '#000' }]}>{item?.estado || '—'}</Text>
+              </View>
+            </View>
+            <Text style={styles.detailsSectionTitle}>Fotodocumentación</Text>
+            {Array.isArray(photos) && photos.length > 0 ? (
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginTop: 8 }}>
+                {photos.map((p, idx) => {
+                  const uri = typeof p === 'string' ? p : (p?.uri || '');
+                  const pid = typeof p === 'object' ? p.id : null;
+                  return (
+                    <View key={idx} style={styles.photoWrap}>
+                      <Image source={{ uri }} style={styles.photoImg} />
+                      {pid ? (
+                        <Pressable style={styles.photoDel} onPress={() => onDeletePhoto?.(pid)}>
+                          <Feather name="trash-2" size={14} color="#fff" />
+                        </Pressable>
+                      ) : null}
+                    </View>
+                  );
+                })}
+              </ScrollView>
+            ) : (
+              <Text style={styles.detailsMuted}>No hay fotos para esta actividad.</Text>
+            )}
+            {Array.isArray(photos) && photos.length > 0 ? (
+              <View style={{ marginTop: 6 }}>
+                {photos.map((p, idx) => {
+                  const uri = typeof p === 'string' ? p : (p?.uri || '');
+                  return <Text key={`uri-${idx}`} style={styles.detailsMuted}>{uri}</Text>;
+                })}
+              </View>
+            ) : null}
+          </ScrollView>
+          <View style={styles.modalActions}>
+            <Pressable style={[styles.btn, styles.btnPrimary]} onPress={onClose}><Text style={styles.btnPrimaryText}>Cerrar</Text></Pressable>
+          </View>
+        </View>
+      </View>
+    </Modal>
+  );
+}
+
 export default function ActivitiesPage() {
   const { token } = useAuth();
   const [query, setQuery] = useState('');
@@ -33,19 +89,17 @@ export default function ActivitiesPage() {
   const [openForm, setOpenForm] = useState(false);
   const [toDelete, setToDelete] = useState(null);
   const [toEdit, setToEdit] = useState(null);
+  const [openDetails, setOpenDetails] = useState(false);
+  const [detailsItem, setDetailsItem] = useState(null);
+  const [detailPhotos, setDetailPhotos] = useState([]);
+  const [photoError, setPhotoError] = useState('');
   const [saving, setSaving] = useState(false);
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [crops, setCrops] = useState([]);
-  const [filters, setFilters] = useState({
-    q: '',
-    id_cultivo: '',
-    tipo_actividad: '',
-    fecha_inicio: '',
-    fecha_fin: '',
-    estado: '',
-    responsable: ''
-  });
+  const [selectedCrop, setSelectedCrop] = useState('');
+  const [startDate, setStartDate] = useState('');
+  const [endDate, setEndDate] = useState('');
 
   const statusConfig = {
     pendiente: { color: '#f57c00', bgColor: '#fff3e0' },
@@ -58,8 +112,10 @@ export default function ActivitiesPage() {
     setLoading(true);
     setError('');
     try {
-      const params = { ...filters, page, limit: 10 };
-      Object.keys(params).forEach((k) => { if (params[k] === '' || params[k] == null) delete params[k]; });
+      const params = { q: query, page, limit: 10 };
+      if (selectedCrop) params.id_cultivo = selectedCrop;
+      if (startDate) params.fecha_inicio = startDate;
+      if (endDate) params.fecha_fin = endDate;
       const { items: list, meta } = await listActividades(token, params);
       setItems(list);
       setTotalPages(meta?.totalPages || 1);
@@ -83,24 +139,56 @@ export default function ActivitiesPage() {
   useEffect(() => {
     const id = setTimeout(fetchData, 400);
     return () => clearTimeout(id);
-  }, [filters]);
+  }, [query, selectedCrop, startDate, endDate]);
   useEffect(() => { fetchCrops(); }, []);
 
-  const onChangeFilter = (key, value) => setFilters((prev) => ({ ...prev, [key]: value }));
-  const clearFilters = () => setFilters({ q: '', id_cultivo: '', tipo_actividad: '', fecha_inicio: '', fecha_fin: '', estado: '', responsable: '' });
+  const filteredItems = useMemo(() => {
+    if (!query) return items;
+    return items.filter(item =>
+      (item.tipo_actividad || '').toLowerCase().includes(query.toLowerCase()) ||
+      (item.responsable || '').toLowerCase().includes(query.toLowerCase()) ||
+      (item.detalles || '').toLowerCase().includes(query.toLowerCase())
+    );
+  }, [query, items]);
 
   const renderItem = ({ item }) => (
     <View style={styles.row}>
-      <Text style={[styles.cell, styles.name]}>{item.tipo_actividad || '—'}</Text>
-      <Text style={styles.cell}>{getCropName(item.id_cultivo) || '—'}</Text>
-      <Text style={styles.cell}>{item.fecha ? new Date(item.fecha).toLocaleDateString() : '—'}</Text>
-      <Text style={styles.cell}>{item.responsable || '—'}</Text>
-      <View style={[styles.cell]}>
+      <Text numberOfLines={1} ellipsizeMode="tail" style={[styles.cell, styles.colTipo]}>{item.tipo_actividad || '—'}</Text>
+      <Text numberOfLines={1} ellipsizeMode="tail" style={[styles.cell, styles.colCultivo]}>{getCropName(item.id_cultivo) || '—'}</Text>
+      <Text numberOfLines={1} ellipsizeMode="tail" style={[styles.cell, styles.colFecha]}>{item.fecha ? new Date(item.fecha).toLocaleDateString() : '—'}</Text>
+      <Text numberOfLines={1} ellipsizeMode="tail" style={[styles.cell, styles.colResp]}>{item.responsable || '—'}</Text>
+      <View style={[styles.cell, styles.colEstado]}>
         <View style={[styles.statusChip, { backgroundColor: statusConfig[item.estado]?.bgColor || '#f0f0f0' }]}>
           <Text style={[styles.statusText, { color: statusConfig[item.estado]?.color || '#000' }]}>{statusConfig[item.estado]?.label || item.estado || '—'}</Text>
         </View>
       </View>
-      <View style={[styles.cell, styles.actions]}>
+      <View style={[styles.cell, styles.colActions, styles.actions]}>
+        <Pressable style={styles.iconBtn} onPress={async () => {
+          try {
+            setPhotoError('');
+            const mod = await import('expo-image-picker');
+            const { status } = await mod.requestCameraPermissionsAsync();
+            if (status !== 'granted') { setPhotoError('Permiso de cámara denegado'); return; }
+            const res = await mod.launchCameraAsync({ allowsEditing: true, quality: 0.7 });
+            if (!res.canceled && res.assets && res.assets[0]?.uri) {
+              const asset = res.assets[0];
+              const id = item?.id_actividad || item?.id;
+              if (!id) { setPhotoError('Actividad no seleccionada'); return; }
+              try {
+                await uploadActividadFoto(id, { uri: asset.uri, name: 'actividad.jpg', type: 'image/jpeg' }, token);
+                const arr = await listActividadFotos(id, token);
+                setDetailsItem(item);
+                setDetailPhotos(arr.map((f) => ({ id: f.id, uri: f.url_imagen })));
+                setOpenDetails(true);
+              } catch (e) {
+                setPhotoError(e?.message || 'Error subiendo foto');
+              }
+            }
+          } catch (e) {
+            setPhotoError('Instala expo-image-picker para usar cámara');
+          }
+        }}><Feather name="camera" size={16} color="#16A34A" /></Pressable>
+        <Pressable style={styles.iconBtn} onPress={async () => { setPhotoError(''); setDetailsItem(item); setOpenDetails(true); try { const arr = await listActividadFotos(item.id_actividad || item.id, token); setDetailPhotos(arr.map((f) => ({ id: f.id, uri: f.url_imagen }))); } catch (e) { setDetailPhotos([]); } }}><Feather name="eye" size={16} color="#2080FE" /></Pressable>
         <Pressable style={styles.iconBtn} onPress={() => { setToEdit(item); setOpenForm(true); }}><Feather name="edit-2" size={16} color="#16A34A" /></Pressable>
         <Pressable style={styles.iconBtn} onPress={() => { setToDelete(item); setOpenConfirm(true); }}><Feather name="trash-2" size={16} color="#ef4444" /></Pressable>
       </View>
@@ -120,102 +208,63 @@ export default function ActivitiesPage() {
         <Text style={styles.addBtnText}>Nueva Actividad</Text>
       </Pressable>
 
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.filtersContainer}>
-        <View style={styles.filterGroup}>
-          <TextInput
-            style={styles.searchInput}
-            placeholder="Buscar por tipo, responsable o detalles..."
-            value={filters.q}
-            onChangeText={(t) => onChangeFilter('q', t)}
-          />
-
-          <View style={styles.pickerContainer}>
-            <Picker
-              selectedValue={filters.id_cultivo}
-              onValueChange={(v) => onChangeFilter('id_cultivo', v)}
-              style={styles.picker}
-            >
-              <Picker.Item label="Todos los cultivos" value="" />
-              {crops.map((crop) => (
-                <Picker.Item key={crop.id_cultivo || crop.id} label={crop.nombre_cultivo || crop.displayName || crop.tipo_cultivo} value={crop.id_cultivo || crop.id} />
-              ))}
-            </Picker>
+      <View style={styles.filtersBox}>
+        <View style={styles.filtersRow}>
+          <View style={styles.fieldWrapper}>
+            <Feather name="search" size={18} color="#9CA3AF" style={styles.inputIcon} />
+            <TextInput
+              style={styles.searchInput}
+              placeholder="Buscar por tipo, responsable o detalles..."
+              value={query}
+              onChangeText={setQuery}
+            />
           </View>
-
-          <View style={styles.pickerContainer}>
-            <Picker
-              selectedValue={filters.tipo_actividad}
-              onValueChange={(v) => onChangeFilter('tipo_actividad', v)}
-              style={styles.picker}
-            >
-              <Picker.Item label="Todos los tipos" value="" />
-              <Picker.Item label="Siembra" value="siembra" />
-              <Picker.Item label="Riego" value="riego" />
-              <Picker.Item label="Fertilización" value="fertilizacion" />
-              <Picker.Item label="Poda" value="poda" />
-              <Picker.Item label="Cosecha" value="cosecha" />
-              <Picker.Item label="Otro" value="otro" />
-            </Picker>
+          <View style={styles.fieldWrapper}>
+            <View style={styles.pickerContainer}>
+              <Picker selectedValue={selectedCrop} onValueChange={setSelectedCrop} style={styles.picker}>
+                <Picker.Item label="Cultivo" value="" />
+                {crops.map((crop) => (
+                  <Picker.Item key={crop.id_cultivo || crop.id} label={crop.nombre_cultivo || crop.displayName || crop.tipo_cultivo} value={crop.id_cultivo || crop.id} />
+                ))}
+              </Picker>
+            </View>
           </View>
-
-          <TextInput
-            style={styles.dateInput}
-            placeholder="Fecha inicio (YYYY-MM-DD)"
-            value={filters.fecha_inicio}
-            onChangeText={(t) => onChangeFilter('fecha_inicio', t)}
-          />
-          <TextInput
-            style={styles.dateInput}
-            placeholder="Fecha fin (YYYY-MM-DD)"
-            value={filters.fecha_fin}
-            onChangeText={(t) => onChangeFilter('fecha_fin', t)}
-          />
-
-          <View style={styles.pickerContainer}>
-            <Picker
-              selectedValue={filters.estado}
-              onValueChange={(v) => onChangeFilter('estado', v)}
-              style={styles.picker}
-            >
-              <Picker.Item label="Todos los estados" value="" />
-              <Picker.Item label="Pendiente" value="pendiente" />
-              <Picker.Item label="En Progreso" value="en_progreso" />
-              <Picker.Item label="Completada" value="completada" />
-              <Picker.Item label="Cancelada" value="cancelada" />
-            </Picker>
-          </View>
-
-          <TextInput
-            style={styles.searchInput}
-            placeholder="Responsable"
-            value={filters.responsable}
-            onChangeText={(t) => onChangeFilter('responsable', t)}
-          />
-
-          <Pressable style={[styles.pageBtn]} onPress={clearFilters}>
-            <Text style={styles.pageText}>Limpiar filtros</Text>
-          </Pressable>
         </View>
-      </ScrollView>
+        <View style={styles.filtersRow}>
+          <View style={styles.fieldWrapper}>
+            <TextInput style={styles.dateInput} placeholder="Fecha inicio" value={startDate} onChangeText={setStartDate} />
+            <Feather name="calendar" size={18} color="#9CA3AF" style={styles.inputIcon} />
+          </View>
+          <View style={styles.fieldWrapper}>
+            <TextInput style={styles.dateInput} placeholder="Fecha fin" value={endDate} onChangeText={setEndDate} />
+            <Feather name="calendar" size={18} color="#9CA3AF" style={styles.inputIcon} />
+          </View>
+        </View>
+      </View>
 
       {error ? <Text style={styles.error}>{error}</Text> : null}
 
-      <View style={styles.tableHeader}>
-        <Text style={[styles.th, styles.name]}>Tipo</Text>
-        <Text style={styles.th}>Cultivo</Text>
-        <Text style={styles.th}>Fecha</Text>
-        <Text style={styles.th}>Responsable</Text>
-        <Text style={styles.th}>Estado</Text>
-        <Text style={[styles.th, styles.actions]}>Acciones</Text>
+      <View style={styles.tableContainer}>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+          <View>
+            <View style={styles.tableHeader}>
+              <Text style={[styles.th, styles.colTipo]}>Tipo</Text>
+              <Text style={[styles.th, styles.colCultivo]}>Cultivo</Text>
+              <Text style={[styles.th, styles.colFecha]}>Fecha</Text>
+              <Text style={[styles.th, styles.colResp]}>Responsable</Text>
+              <Text style={[styles.th, styles.colEstado]}>Estado</Text>
+              <Text style={[styles.th, styles.colActions]}>Acciones</Text>
+            </View>
+            {loading ? <ActivityIndicator size="large" color="#16A34A" /> : (
+              <FlatList
+                data={filteredItems}
+                renderItem={renderItem}
+                keyExtractor={(it) => String(it.id_actividad || it.id)}
+              />
+            )}
+          </View>
+        </ScrollView>
       </View>
-
-      {loading ? <ActivityIndicator size="large" color="#16A34A" /> : (
-        <FlatList
-          data={items}
-          renderItem={renderItem}
-          keyExtractor={(it) => String(it.id_actividad || it.id)}
-        />
-      )}
 
       {totalPages > 1 && (
         <View style={styles.pagination}>
@@ -275,6 +324,23 @@ export default function ActivitiesPage() {
           }
         }}
       />
+      <DetailsModal
+        visible={openDetails}
+        item={detailsItem}
+        statusConfig={statusConfig}
+        photos={detailPhotos}
+        onDeletePhoto={async (pid) => {
+          try {
+            const id = detailsItem?.id_actividad || detailsItem?.id;
+            await deleteActividadFoto(pid, token);
+            const arr = await listActividadFotos(id, token);
+            setDetailPhotos(arr.map((f) => ({ id: f.id, uri: f.url_imagen })));
+          } catch (e) {
+            setError(e?.message || 'No se pudo eliminar la foto');
+          }
+        }}
+        onClose={() => { setOpenDetails(false); setDetailsItem(null); }}
+      />
     </View>
   );
 }
@@ -285,19 +351,28 @@ const styles = StyleSheet.create({
   addBtn: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#16A34A', paddingHorizontal: 12, paddingVertical: 8, borderRadius: 8, alignSelf: 'flex-start', marginBottom: 8 },
   addBtnText: { color: '#fff', marginLeft: 8 },
   filtersContainer: { marginBottom: 8 },
-  filterGroup: { flexDirection: 'row', gap: 8, alignItems: 'center' },
-  searchInput: { borderWidth: 1, borderColor: '#E4E7EC', borderRadius: 8, padding: 8, flex: 1, minWidth: 150 },
-  dateInput: { borderWidth: 1, borderColor: '#E4E7EC', borderRadius: 8, padding: 8, minWidth: 120 },
-  pickerContainer: { borderWidth: 1, borderColor: '#E4E7EC', borderRadius: 8, minWidth: 160 },
+  filtersBox: { backgroundColor: '#fff', borderWidth: 1, borderColor: '#E2E8F0', borderRadius: 12, padding: 12, shadowColor: '#000', shadowOpacity: 0.05, shadowRadius: 8, shadowOffset: { width: 0, height: 3 }, elevation: 2 },
+  filtersRow: { flexDirection: 'row', gap: 12, marginBottom: 8 },
+  fieldWrapper: { position: 'relative', flex: 1 },
+  inputIcon: { position: 'absolute', left: 10, top: 12 },
+  searchInput: { borderWidth: 1, borderColor: '#E4E7EC', borderRadius: 8, paddingVertical: 8, paddingHorizontal: 32, flex: 1 },
+  pickerContainer: { borderWidth: 1, borderColor: '#E4E7EC', borderRadius: 8, backgroundColor: '#fff' },
   picker: { height: 40 },
-  tableHeader: { flexDirection: 'row', paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: '#E4E7EC' },
-  th: { flex: 1, fontSize: 12, fontWeight: '700', color: '#16A34A' },
-  name: { flex: 1.2 },
-  row: { flexDirection: 'row', alignItems: 'center', paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: '#F1F5F9' },
-  cell: { flex: 1, fontSize: 12, color: '#0f172a' },
+  dateInput: { borderWidth: 1, borderColor: '#E4E7EC', borderRadius: 8, paddingVertical: 8, paddingHorizontal: 32 },
+  tableContainer: { borderWidth: 1, borderColor: '#E5E7EB', borderRadius: 10, overflow: 'hidden' },
+  tableHeader: { flexDirection: 'row', paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: '#E4E7EC', backgroundColor: '#F9FAFB' },
+  th: { fontSize: 12, fontWeight: '700', color: '#16A34A' },
+  row: { flexDirection: 'row', alignItems: 'center', paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: '#F1F5F9', backgroundColor: '#fff' },
+  cell: { fontSize: 12, color: '#0f172a', paddingRight: 8 },
+  colTipo: { width: 140 },
+  colCultivo: { width: 160 },
+  colFecha: { width: 120 },
+  colResp: { width: 160 },
+  colEstado: { width: 120 },
+  colActions: { width: 160 },
   statusChip: { paddingHorizontal: 8, paddingVertical: 4, borderRadius: 12 },
   statusText: { fontSize: 12 },
-  actions: { flex: 0.8, flexDirection: 'row', justifyContent: 'flex-end' },
+  actions: { flexDirection: 'row', justifyContent: 'flex-end' },
   iconBtn: { marginLeft: 10 },
   error: { marginBottom: 8, color: '#DC2626' },
   pagination: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 12, marginTop: 8 },
@@ -315,4 +390,15 @@ const styles = StyleSheet.create({
   btnSecondaryText: { color: '#334155', fontSize: 13 },
   btnDanger: { backgroundColor: '#ef4444' },
   btnPrimaryText: { color: '#fff', fontSize: 13 },
+  btnPrimary: { backgroundColor: '#16A34A' },
+  detailsHeader: { fontSize: 16, fontWeight: '700', color: '#0f172a' },
+  detailsSub: { fontSize: 12, color: '#334155' },
+  detailsSectionTitle: { fontSize: 16, fontWeight: '700', color: '#0f172a', marginTop: 8 },
+  detailsMuted: { fontSize: 13, color: '#64748b' },
+  detailRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  detailLabel: { color: '#334155', fontWeight: '600' },
+  detailValue: { color: '#0f172a' },
+  photoWrap: { width: 96, height: 96, borderRadius: 8, marginRight: 8, borderWidth: 1, borderColor: '#E5E7EB', overflow: 'hidden' },
+  photoImg: { width: '100%', height: '100%' },
+  photoDel: { position: 'absolute', top: 4, right: 4, backgroundColor: 'rgba(0,0,0,0.5)', borderRadius: 10, padding: 4 },
 });

@@ -3,12 +3,12 @@ import React from 'react';
 import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { AuthProvider, useAuth } from './src/contexts/AuthContext';
-import { AlertProvider } from './src/contexts/AlertContext';
 import LoginPage from './src/pages/auth/LoginPage';
 import ForgotPasswordPage from './src/pages/auth/ForgotPasswordPage';
 import RegisterPage from './src/pages/auth/RegisterPage';
 import AppDrawer from './src/navigation/AppDrawer';
 import { View } from 'react-native';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 
 const Stack = createNativeStackNavigator();
 
@@ -27,14 +27,16 @@ function RootNavigator() {
   );
 }
 
+const queryClient = new QueryClient();
+
 export default function App() {
   return (
     <View style={{flex:1}}>
-      <AuthProvider>
-        <AlertProvider>
+      <QueryClientProvider client={queryClient}>
+        <AuthProvider>
           <RootNavigator />
-        </AlertProvider>
-      </AuthProvider>
+        </AuthProvider>
+      </QueryClientProvider>
       <StatusBar style="dark" />
     </View>
   );

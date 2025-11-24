@@ -6,6 +6,7 @@ const LotsMapPage = require('../pages/cultivos/LotsMapPage').default;
 import DashboardPage from '../pages/dashboard/DashboardPage';
 import ModulePage from '../pages/common/ModulePage';
 import CalendarPage from '../pages/calendar/CalendarPage';
+import FinanzasPage from '../pages/finanzas/FinanzasPage';
 import InventoryPage from '../pages/inventario/InventoryPage'; 
 import AlmacenesPage from '../pages/inventario/AlmacenesPage';
 import CategoriasPage from '../pages/inventario/CategoriasPage';
@@ -45,7 +46,7 @@ export default function AppDrawer() {
       <Drawer.Screen name="Calendario" component={CalendarPage} options={{ drawerIcon: ({ color, size }) => <Feather name="calendar" color={color} size={size} /> }} />
       <Drawer.Screen name="Gestión de EPA" component={EpasPage} options={{ drawerIcon: ({ color, size }) => <Feather name="package" color={color} size={size} /> }} />
       <Drawer.Screen name="Tratamientos" component={TratamientosPage} options={{ drawerIcon: ({ color, size }) => <Feather name="shield" color={color} size={size} /> }} />
-      <Drawer.Screen name="Finanzas" children={() => <ModulePage title="Finanzas" />} options={{ drawerIcon: ({ color, size }) => <Feather name="dollar-sign" color={color} size={size} /> }} />
+      <Drawer.Screen name="Finanzas" component={FinanzasPage} options={{ drawerIcon: ({ color, size }) => <Feather name="dollar-sign" color={color} size={size} /> }} />
       <Drawer.Screen name="Gestión de Inventario" component={InventoryPage} options={{ drawerIcon: ({ color, size }) => <Feather name="box" color={color} size={size} /> }} />
       <Drawer.Screen name="Almacenes" component={AlmacenesPage} options={{ drawerIcon: ({ color, size }) => <Feather name="box" color={color} size={size} /> }} />
       <Drawer.Screen name="Categorías" component={CategoriasPage} options={{ drawerIcon: ({ color, size }) => <Feather name="layers" color={color} size={size} /> }} />

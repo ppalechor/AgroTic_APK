@@ -5,6 +5,45 @@ const PERMISOS_URL = `${baseUrl}/permisos`;
 
 let _cachedAllPerms = null;
 
+const normalizeAction = (a) => {
+  const s = (a || '').toString().trim().toLowerCase();
+  if (!s) return '';
+  const map = {
+    read: 'ver',
+    list: 'ver',
+    view: 'ver',
+    create: 'crear',
+    add: 'crear',
+    new: 'crear',
+    update: 'editar',
+    edit: 'editar',
+    delete: 'eliminar',
+    remove: 'eliminar',
+    export: 'exportar',
+    assign: 'asignar',
+    revoke: 'revocar'
+  };
+  return map[s] || s;
+};
+
+const normalizeResource = (r) => {
+  const s = (r || '').toString().trim().toLowerCase();
+  if (!s) return '';
+  const map = {
+    usuario: 'usuarios',
+    user: 'usuarios',
+    users: 'usuarios',
+    permiso: 'permisos',
+    permission: 'permisos',
+    permissions: 'permisos',
+    finanza: 'finanzas',
+    finance: 'finanzas',
+    finances: 'finanzas',
+    financial: 'finanzas',
+  };
+  return map[s] || s;
+};
+
 const normalizeKey = (k) => {
   const s = (k || '').toString().trim().toLowerCase();
   if (!s) return '';
@@ -13,6 +52,17 @@ const normalizeKey = (k) => {
   n = n.replace(/:\*+/g, ':*');
   n = n.endsWith(':') ? n.slice(0, -1) : n;
   return n;
+};
+
+const normalizeKeyWithAction = (k) => {
+  const base = normalizeKey(k);
+  const parts = base.split(':');
+  if (parts.length >= 2) {
+    const res = normalizeResource(parts[0]);
+    const last = normalizeAction(parts[parts.length - 1]);
+    return `${res}:${last}`;
+  }
+  return base;
 };
 
 const toArrayItems = (data) => {
@@ -72,15 +122,15 @@ const permissionService = {
         if (m && _cachedAllPerms) {
           const id = Number(m[1]);
           const found = _cachedAllPerms.find(x => Number(x.id_permiso) === id || Number(x.id) === id);
-          if (found && (found.recurso || found.accion)) return normalizeKey(`${found.recurso || ''}:${found.accion || ''}`);
+          if (found && (found.recurso || found.accion)) return normalizeKeyWithAction(`${normalizeResource(found.recurso || '')}:${found.accion || ''}`);
         }
-        return normalizeKey(s);
+        return normalizeKeyWithAction(s);
       }
-      if (p.clave && typeof p.clave === 'string') return normalizeKey(p.clave);
-      if (p.recurso && p.accion) return normalizeKey(`${p.recurso}:${p.accion}`);
+      if (p.clave && typeof p.clave === 'string') return normalizeKeyWithAction(p.clave);
+      if (p.recurso && p.accion) return normalizeKeyWithAction(`${normalizeResource(p.recurso)}:${p.accion}`);
       if (p.id_permiso && _cachedAllPerms) {
         const found = _cachedAllPerms.find(x => Number(x.id_permiso) === Number(p.id_permiso) || Number(x.id) === Number(p.id_permiso));
-        if (found) return normalizeKey(`${found.recurso || ''}:${found.accion || ''}`);
+        if (found) return normalizeKeyWithAction(`${normalizeResource(found.recurso || '')}:${found.accion || ''}`);
       }
       return null;
     };
@@ -113,15 +163,15 @@ const permissionService = {
         if (m && _cachedAllPerms) {
           const id = Number(m[1]);
           const found = _cachedAllPerms.find(x => Number(x.id_permiso) === id || Number(x.id) === id);
-          if (found && (found.recurso || found.accion)) return normalizeKey(`${found.recurso || ''}:${found.accion || ''}`);
+          if (found && (found.recurso || found.accion)) return normalizeKeyWithAction(`${normalizeResource(found.recurso || '')}:${found.accion || ''}`);
         }
-        return normalizeKey(s);
+        return normalizeKeyWithAction(s);
       }
-      if (p.clave && typeof p.clave === 'string') return normalizeKey(p.clave);
-      if (p.recurso && p.accion) return normalizeKey(`${p.recurso}:${p.accion}`);
+      if (p.clave && typeof p.clave === 'string') return normalizeKeyWithAction(p.clave);
+      if (p.recurso && p.accion) return normalizeKeyWithAction(`${normalizeResource(p.recurso)}:${p.accion}`);
       if (p.id_permiso && _cachedAllPerms) {
         const found = _cachedAllPerms.find(x => Number(x.id_permiso) === Number(p.id_permiso) || Number(x.id) === Number(p.id_permiso));
-        if (found) return normalizeKey(`${found.recurso || ''}:${found.accion || ''}`);
+        if (found) return normalizeKeyWithAction(`${normalizeResource(found.recurso || '')}:${found.accion || ''}`);
       }
       return null;
     };

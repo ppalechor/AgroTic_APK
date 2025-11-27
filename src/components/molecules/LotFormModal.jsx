@@ -7,6 +7,7 @@ export default function LotFormModal({ visible, onClose, onSubmit, lot, loading 
     descripcion: '',
     activo: true
   });
+  const [error, setError] = useState('');
 
   useEffect(() => {
     if (lot) {
@@ -29,11 +30,18 @@ export default function LotFormModal({ visible, onClose, onSubmit, lot, loading 
   };
 
   const handleSubmit = async () => {
+    const nombre = String(formData.nombre || '').trim();
+    const descripcion = String(formData.descripcion || '').trim();
+    if (!nombre || !descripcion) {
+      setError('Completa Nombre y Descripción');
+      return;
+    }
     const payload = {
-      nombre_lote: formData.nombre,
-      descripcion: formData.descripcion,
+      nombre_lote: nombre,
+      descripcion: descripcion,
       activo: formData.activo
     };
+    setError('');
     await onSubmit(payload);
   };
 
@@ -43,6 +51,9 @@ export default function LotFormModal({ visible, onClose, onSubmit, lot, loading 
         <View style={styles.card}>
           <Text style={styles.title}>{lot ? 'Editar Lote' : 'Nuevo Lote'}</Text>
           <ScrollView style={styles.scroll}>
+            {error ? (
+              <Text style={{ color: '#DC2626', marginBottom: 8 }}>{error}</Text>
+            ) : null}
             <TextInput
               style={styles.input}
               placeholder="Nombre del Lote"

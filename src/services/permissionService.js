@@ -1,7 +1,11 @@
 import { baseUrl } from './api';
-import { getAuthHeader } from './authToken';
+import { getToken } from './authToken';
 
 const PERMISOS_URL = `${baseUrl}/permisos`;
+
+const authHeader = (token) => ({
+  Authorization: `Bearer ${token || getToken() || ''}`,
+});
 
 let _cachedAllPerms = null;
 
@@ -73,8 +77,8 @@ const toArrayItems = (data) => {
 };
 
 const permissionService = {
-  list: async () => {
-    const res = await fetch(PERMISOS_URL, { headers: getAuthHeader() });
+  list: async (token) => {
+    const res = await fetch(PERMISOS_URL, { headers: authHeader(token) });
     const contentType = res.headers.get('content-type') || '';
     let data = [];
     if (contentType.includes('application/json')) data = await res.json();
@@ -87,11 +91,11 @@ const permissionService = {
     return arr;
   },
 
-  create: async ({ recurso, accion, nombre_permiso, descripcion, activo = true }) => {
+  create: async ({ recurso, accion, nombre_permiso, descripcion, activo = true }, token) => {
     const payload = { recurso, accion, nombre_permiso, descripcion, activo };
     const res = await fetch(PERMISOS_URL, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', ...getAuthHeader() },
+      headers: { 'Content-Type': 'application/json', ...authHeader(token) },
       body: JSON.stringify(payload),
     });
     const contentType = res.headers.get('content-type') || '';
@@ -100,15 +104,15 @@ const permissionService = {
     return data;
   },
 
-  getUserKeys: async (idUsuario) => {
+  getUserKeys: async (idUsuario, token) => {
     const url = `${PERMISOS_URL}/usuario/${idUsuario}`;
-    const res = await fetch(url, { headers: getAuthHeader() });
+    const res = await fetch(url, { headers: authHeader(token) });
     const contentType = res.headers.get('content-type') || '';
     const data = contentType.includes('application/json') ? await res.json() : [];
 
     if (!_cachedAllPerms) {
       try {
-        _cachedAllPerms = await permissionService.list();
+        _cachedAllPerms = await permissionService.list(token);
       } catch (e) {
         console.warn('[permissionService.getUserKeys] Failed to cache permissions:', e);
       }
@@ -141,15 +145,15 @@ const permissionService = {
     return keys;
   },
 
-  getMyKeys: async () => {
+  getMyKeys: async (token) => {
     const url = `${PERMISOS_URL}/usuario/me`;
-    const res = await fetch(url, { headers: getAuthHeader() });
+    const res = await fetch(url, { headers: authHeader(token) });
     const contentType = res.headers.get('content-type') || '';
     const data = contentType.includes('application/json') ? await res.json() : [];
 
     if (!_cachedAllPerms) {
       try {
-        _cachedAllPerms = await permissionService.list();
+        _cachedAllPerms = await permissionService.list(token);
       } catch (e) {
         console.warn('[permissionService.getMyKeys] Failed to cache permissions:', e);
       }
@@ -182,11 +186,11 @@ const permissionService = {
     return keys;
   },
 
-  assign: async ({ id_usuario, id_permiso }) => {
+  assign: async ({ id_usuario, id_permiso }, token) => {
     const url = `${PERMISOS_URL}/asignar`;
     const res = await fetch(url, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', ...getAuthHeader() },
+      headers: { 'Content-Type': 'application/json', ...authHeader(token) },
       body: JSON.stringify({ id_usuario, id_permiso }),
     });
     const contentType = res.headers.get('content-type') || '';
@@ -195,11 +199,11 @@ const permissionService = {
     return data;
   },
 
-  revoke: async ({ id_usuario, id_permiso }) => {
+  revoke: async ({ id_usuario, id_permiso }, token) => {
     const url = `${PERMISOS_URL}/asignar`;
     const res = await fetch(url, {
       method: 'DELETE',
-      headers: { 'Content-Type': 'application/json', ...getAuthHeader() },
+      headers: { 'Content-Type': 'application/json', ...authHeader(token) },
       body: JSON.stringify({ id_usuario, id_permiso }),
     });
     const contentType = res.headers.get('content-type') || '';

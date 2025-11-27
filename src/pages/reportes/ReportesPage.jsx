@@ -1,5 +1,8 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, TextInput, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TextInput, TouchableOpacity, Pressable, Platform } from 'react-native';
+import { Picker } from '@react-native-picker/picker';
+import { Feather } from '@expo/vector-icons';
+import DateTimePicker from '@react-native-community/datetimepicker';
 import { useAuth } from '../../contexts/AuthContext';
 import { listInventario, listMovimientos, listCategorias, listAlmacenes, listInsumos } from '../../services/api';
 
@@ -20,6 +23,9 @@ export default function ReportesPage() {
   const [dateTo, setDateTo] = useState('');
   const [lowThreshold, setLowThreshold] = useState(5);
   const [presetSel, setPresetSel] = useState('');
+  const [showFromPicker, setShowFromPicker] = useState(false);
+  const [showToPicker, setShowToPicker] = useState(false);
+  const toIso = (d) => new Date(d).toISOString().slice(0, 10);
 
   const fetchData = async () => {
     setLoading(true);
@@ -178,70 +184,106 @@ export default function ReportesPage() {
           </View>
         </View>
 
-        <View style={styles.filterRow}>
-          <Text style={styles.filterLabel}>Categoría:</Text>
-          <TextInput
-            style={styles.filterInput}
-            placeholder={`Opciones: ${categorias.map(c => c.nombre).join(', ')}`}
-            value={categoriaSel}
-            onChangeText={setCategoriaSel}
-          />
-        </View>
+        <View style={styles.filterCard}>
+          <View style={styles.filterGrid}>
+            <View style={styles.filterItem}>
+              <View style={styles.filterLabelRow}>
+                <Feather name="tag" size={16} color="#16A34A" />
+                <Text style={styles.filterLabel}>Categoría</Text>
+              </View>
+              <View style={styles.pickerWrap}>
+                <Picker selectedValue={categoriaSel} onValueChange={(v) => setCategoriaSel(v)} style={styles.picker}>
+                  <Picker.Item label="Todos" value="" />
+                  {categorias.map(c => (
+                    <Picker.Item key={String(c.id)} label={c.nombre} value={c.nombre} />
+                  ))}
+                </Picker>
+              </View>
+            </View>
 
-        <View style={styles.filterRow}>
-          <Text style={styles.filterLabel}>Almacén:</Text>
-          <TextInput
-            style={styles.filterInput}
-            placeholder={`Opciones: ${almacenes.map(a => a.nombre).join(', ')}`}
-            value={almacenSel}
-            onChangeText={setAlmacenSel}
-          />
-        </View>
+            <View style={styles.filterItem}>
+              <View style={styles.filterLabelRow}>
+                <Feather name="home" size={16} color="#16A34A" />
+                <Text style={styles.filterLabel}>Almacén</Text>
+              </View>
+              <View style={styles.pickerWrap}>
+                <Picker selectedValue={almacenSel} onValueChange={(v) => setAlmacenSel(v)} style={styles.picker}>
+                  <Picker.Item label="Todos" value="" />
+                  {almacenes.map(a => (
+                    <Picker.Item key={String(a.id)} label={a.nombre} value={a.nombre} />
+                  ))}
+                </Picker>
+              </View>
+            </View>
 
-        <View style={styles.filterRow}>
-          <Text style={styles.filterLabel}>Nombre insumo:</Text>
-          <TextInput
-            style={styles.filterInput}
-            placeholder="Buscar por nombre"
-            value={searchTerm}
-            onChangeText={setSearchTerm}
-          />
-        </View>
+            <View style={styles.filterItem}>
+              <View style={styles.filterLabelRow}>
+                <Feather name="search" size={16} color="#16A34A" />
+                <Text style={styles.filterLabel}>Nombre insumo</Text>
+              </View>
+              <TextInput
+                style={styles.filterInput}
+                placeholder="Buscar por nombre"
+                value={searchTerm}
+                onChangeText={setSearchTerm}
+              />
+            </View>
 
-        <View style={styles.filterRow}>
-          <Text style={styles.filterLabel}>Desde:</Text>
-          <TextInput
-            style={styles.filterInput}
-            placeholder="YYYY-MM-DD"
-            value={dateFrom}
-            onChangeText={setDateFrom}
-          />
-        </View>
+            <View style={styles.filterItem}>
+              <View style={styles.filterLabelRow}>
+                <Feather name="calendar" size={16} color="#16A34A" />
+                <Text style={styles.filterLabel}>Desde</Text>
+              </View>
+              <Pressable style={styles.filterInput} onPress={() => setShowFromPicker(true)}>
+                <Text style={{ fontSize: 14, color: '#0f172a' }}>{dateFrom || 'YYYY-MM-DD'}</Text>
+              </Pressable>
+              {showFromPicker ? (
+                <DateTimePicker
+                  value={dateFrom ? new Date(dateFrom) : new Date()}
+                  mode="date"
+                  display="default"
+                  onChange={(e, sel) => { if (sel) setDateFrom(toIso(sel)); if (Platform.OS !== 'ios') setShowFromPicker(false); }}
+                />
+              ) : null}
+            </View>
 
-        <View style={styles.filterRow}>
-          <Text style={styles.filterLabel}>Hasta:</Text>
-          <TextInput
-            style={styles.filterInput}
-            placeholder="YYYY-MM-DD"
-            value={dateTo}
-            onChangeText={setDateTo}
-          />
-        </View>
+            <View style={styles.filterItem}>
+              <View style={styles.filterLabelRow}>
+                <Feather name="calendar" size={16} color="#16A34A" />
+                <Text style={styles.filterLabel}>Hasta</Text>
+              </View>
+              <Pressable style={styles.filterInput} onPress={() => setShowToPicker(true)}>
+                <Text style={{ fontSize: 14, color: '#0f172a' }}>{dateTo || 'YYYY-MM-DD'}</Text>
+              </Pressable>
+              {showToPicker ? (
+                <DateTimePicker
+                  value={dateTo ? new Date(dateTo) : new Date()}
+                  mode="date"
+                  display="default"
+                  onChange={(e, sel) => { if (sel) setDateTo(toIso(sel)); if (Platform.OS !== 'ios') setShowToPicker(false); }}
+                />
+              ) : null}
+            </View>
 
-        <View style={styles.filterRow}>
-          <Text style={styles.filterLabel}>Umbral stock bajo:</Text>
-          <TextInput
-            style={styles.filterInput}
-            value={String(lowThreshold)}
-            onChangeText={text => setLowThreshold(Number(text) || 0)}
-            keyboardType="numeric"
-          />
-        </View>
+            <View style={styles.filterItem}>
+              <View style={styles.filterLabelRow}>
+                <Feather name="alert-triangle" size={16} color="#16A34A" />
+                <Text style={styles.filterLabel}>Umbral stock bajo</Text>
+              </View>
+              <TextInput
+                style={styles.filterInput}
+                value={String(lowThreshold)}
+                onChangeText={text => setLowThreshold(Number(text) || 0)}
+                keyboardType="numeric"
+              />
+            </View>
+          </View>
 
-        <View style={styles.filterRow}>
-          <TouchableOpacity onPress={resetFilters}>
-            <Text style={styles.clearButton}>Limpiar filtros</Text>
-          </TouchableOpacity>
+          <View style={{ flexDirection: 'row', justifyContent: 'flex-end', marginTop: 8 }}>
+            <Pressable style={[styles.btn, styles.btnSecondary]} onPress={resetFilters}>
+              <Text style={styles.btnSecondaryText}>Limpiar filtros</Text>
+            </Pressable>
+          </View>
         </View>
       </View>
 
@@ -310,14 +352,21 @@ const styles = StyleSheet.create({
   filterTitle: { fontSize: 16, fontWeight: '700', color: '#16A34A', marginBottom: 8 },
   presetContainer: { marginBottom: 12 },
   presetButtons: { flexDirection: 'row', flexWrap: 'wrap' },
-  presetButton: { backgroundColor: '#f0f9ff', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 8, marginRight: 8, marginBottom: 4 },
-  presetButtonSelected: { backgroundColor: '#16A34A' },
-  presetButtonText: { fontSize: 12, color: '#16A34A' },
+  presetButton: { backgroundColor: '#e8f6ee', borderWidth: 1, borderColor: '#c9dfcf', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20, marginRight: 8, marginBottom: 6 },
+  presetButtonSelected: { backgroundColor: '#16A34A', borderColor: '#16A34A' },
+  presetButtonText: { fontSize: 12, color: '#0f172a' },
   presetButtonTextSelected: { color: '#fff' },
-  filterRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 8 },
-  filterLabel: { fontSize: 14, marginRight: 8, flex: 1 },
-  filterInput: { borderWidth: 1, borderColor: '#e4e7ec', borderRadius: 8, paddingHorizontal: 8, paddingVertical: 4, flex: 2 },
-  clearButton: { color: '#16A34A', fontSize: 14, textDecorationLine: 'underline' },
+  filterCard: { backgroundColor: '#fff', borderRadius: 12, padding: 12, borderWidth: 1, borderColor: '#E4E7EC', shadowColor: '#000', shadowOpacity: 0.05, shadowRadius: 8, shadowOffset: { width: 0, height: 3 }, elevation: 2 },
+  filterGrid: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between' },
+  filterItem: { width: '48%', marginBottom: 10 },
+  filterLabelRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 6 },
+  filterLabel: { fontSize: 12, color: '#64748b', marginLeft: 6 },
+  filterInput: { borderWidth: 1, borderColor: '#E4E7EC', borderRadius: 8, paddingHorizontal: 10, paddingVertical: 8, fontSize: 14 },
+  pickerWrap: { borderWidth: 1, borderColor: '#E4E7EC', borderRadius: 8 },
+  picker: { height: 40 },
+  btn: { paddingHorizontal: 12, paddingVertical: 8, borderRadius: 8 },
+  btnSecondary: { borderWidth: 1, borderColor: '#E4E7EC' },
+  btnSecondaryText: { color: '#334155', fontSize: 13 },
   error: { color: '#dc2626', marginBottom: 8 },
   loading: { textAlign: 'center', color: '#64748b' },
   sectionTitle: { fontSize: 16, fontWeight: '700', color: '#16A34A', marginBottom: 8, marginTop: 12 },

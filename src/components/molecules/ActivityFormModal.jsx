@@ -4,7 +4,7 @@ import { Feather } from '@expo/vector-icons';
 import { Picker } from '@react-native-picker/picker';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { useAuth } from '../../contexts/AuthContext';
-import { listActividadFotos, deleteActividadFoto } from '../../services/api';
+import { listActividadFotos, deleteActividadFoto, listUsuarios } from '../../services/api';
 
 const activityTypes = [
   { value: 'siembra', label: 'Siembra' },
@@ -22,12 +22,13 @@ const statusOptions = [
   { value: 'cancelada', label: 'Cancelada' }
 ];
 
-export default function ActivityFormModal({ visible, onClose, onSubmit, activity, crops = [], loading }) {
+export default function ActivityFormModal({ visible, onClose, onSubmit, activity, crops = [], users: usersProp = [], loading }) {
   const { token } = useAuth();
   const [formData, setFormData] = useState({
     tipo_actividad: '',
     fecha: null,
     responsable: '',
+    id_usuario: '',
     detalles: '',
     estado: 'pendiente',
     id_cultivo: ''
@@ -35,13 +36,22 @@ export default function ActivityFormModal({ visible, onClose, onSubmit, activity
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [photos, setPhotos] = useState([]);
   const [photoError, setPhotoError] = useState('');
+  const [users, setUsers] = useState([]);
+  const [usersError, setUsersError] = useState('');
+  const [userSearch, setUserSearch] = useState('');
 
   useEffect(() => {
     if (activity) {
       setFormData({
-        tipo_actividad: activity.tipo_actividad || '',
+        tipo_actividad: (() => {
+          const raw = activity.tipo_actividad || '';
+          const s = String(raw).toLowerCase();
+          const allowed = ['siembra','riego','fertilizacion','poda','cosecha','otro'];
+          return allowed.includes(s) ? s : '';
+        })(),
         fecha: activity.fecha ? new Date(activity.fecha) : new Date(),
         responsable: activity.responsable || '',
+        id_usuario: activity.id_usuario || activity.id_responsable || '',
         detalles: activity.detalles || '',
         estado: activity.estado || 'pendiente',
         id_cultivo: activity.id_cultivo || ''
@@ -65,6 +75,7 @@ export default function ActivityFormModal({ visible, onClose, onSubmit, activity
         tipo_actividad: '',
         fecha: new Date(),
         responsable: '',
+        id_usuario: '',
         detalles: '',
         estado: 'pendiente',
         id_cultivo: ''
@@ -72,6 +83,31 @@ export default function ActivityFormModal({ visible, onClose, onSubmit, activity
       setPhotos([]);
     }
   }, [activity, visible]);
+
+  useEffect(() => {
+    const fetchUsers = async () => {
+      try {
+        if (!token) { setUsers([]); return; }
+        setUsersError('');
+        const { items } = await listUsuarios(token, { page: 1, limit: 100 });
+        setUsers(items || []);
+      } catch (e) {
+        setUsers([]);
+        setUsersError(e?.message || 'Error obteniendo usuarios');
+      }
+    };
+    if (visible) fetchUsers();
+  }, [visible, token]);
+
+  const allUsers = (Array.isArray(usersProp) && usersProp.length ? usersProp : users);
+  const filteredUsers = allUsers.filter(u => {
+    const q = String(userSearch || '').trim().toLowerCase();
+    if (!q) return true;
+    const name = String(u.nombres || '').toLowerCase();
+    const email = String(u.email || '').toLowerCase();
+    const doc = String(u.numero_documento || '').toLowerCase();
+    return name.includes(q) || email.includes(q) || doc.includes(q);
+  });
 
   const handleChange = (field, value) => {
     setFormData(prev => ({ ...prev, [field]: value }));
@@ -89,7 +125,18 @@ export default function ActivityFormModal({ visible, onClose, onSubmit, activity
       ...formData,
       fecha: formData.fecha ? formData.fecha.toISOString() : null,
       id_cultivo: formData.id_cultivo ? parseInt(formData.id_cultivo, 10) : null,
+      id_usuario: formData.id_usuario ? parseInt(formData.id_usuario, 10) : undefined,
+      id_usuario_asignado: formData.id_usuario ? parseInt(formData.id_usuario, 10) : undefined,
     };
+    if (payload.tipo_actividad) {
+      const allowed = ['siembra','riego','fertilizacion','poda','cosecha','otro'];
+      const s = String(payload.tipo_actividad).toLowerCase();
+      if (!allowed.includes(s)) {
+        payload.tipo_actividad = undefined;
+      } else {
+        payload.tipo_actividad = s;
+      }
+    }
     await onSubmit(payload);
   };
 
@@ -133,10 +180,35 @@ export default function ActivityFormModal({ visible, onClose, onSubmit, activity
 
             <TextInput
               style={styles.input}
-              placeholder="Responsable"
-              value={formData.responsable}
-              onChangeText={(value) => handleChange('responsable', value)}
+              placeholder="Buscar usuario por nombre, email o documento..."
+              value={userSearch}
+              onChangeText={setUserSearch}
             />
+            <View style={styles.pickerContainer}>
+              <Picker
+                selectedValue={formData.id_usuario}
+                onValueChange={(value) => {
+                   const sel = allUsers.find(u => String(u.id || u.id_usuarios || u.id_usuario) === String(value));
+                  const nombre = sel ? (sel.nombres || sel.email || '') : '';
+                  setFormData(prev => ({ ...prev, id_usuario: value, responsable: nombre }));
+                }}
+                style={styles.picker}
+              >
+                <Picker.Item label="Seleccionar responsable..." value="" />
+                {filteredUsers.map(u => (
+                  <Picker.Item key={String(u.id || u.id_usuarios || u.id_usuario)} label={(u.nombres || u.email)} value={String(u.id || u.id_usuarios || u.id_usuario)} />
+                ))}
+              </Picker>
+            </View>
+            {usersError ? <Text style={{ color: '#d32f2f', marginTop: 4 }}>{usersError}</Text> : null}
+            {filteredUsers.length === 0 && (
+              <TextInput
+                style={styles.input}
+                placeholder="Responsable (texto)"
+                value={formData.responsable}
+                onChangeText={(value) => setFormData(prev => ({ ...prev, responsable: value, id_usuario: '' }))}
+              />
+            )}
 
             <View style={styles.pickerContainer}>
               <Picker

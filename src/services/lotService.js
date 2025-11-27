@@ -59,10 +59,14 @@ const lotService = {
 
       const { nombre_lote, descripcion, activo } = lotData;
       const filteredData = {
-        nombre_lote: String(nombre_lote),
-        descripcion: String(descripcion),
+        nombre_lote: String(nombre_lote || '').trim(),
+        descripcion: String(descripcion || '').trim(),
         activo: Boolean(activo !== undefined ? activo : true)
       };
+
+      if (!filteredData.nombre_lote || !filteredData.descripcion) {
+        throw new Error('Completa Nombre y Descripción');
+      }
 
       console.log('[lotService] Datos filtrados para envío:', filteredData);
 
@@ -134,51 +138,20 @@ const lotService = {
 
   updateCoordinates: async (token, id, geometry) => {
     try {
-      const body1 = { coordenadas: geometry };
-      try {
-        const r1 = await fetch(`${baseUrl}/lotes/${id}`, {
-          method: 'PATCH',
-          headers: {
-            'Content-Type': 'application/json',
-            ...getAuthHeader(token)
-          },
-          body: JSON.stringify(body1)
-        });
-        if (r1.ok) {
-          const data = await r1.json();
-          return data;
-        }
-      } catch (e1) {
-        // ignore
-      }
-      try {
-        const r2 = await fetch(`${baseUrl}/lotes/${id}/coordenadas`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            ...getAuthHeader(token)
-          },
-          body: JSON.stringify(geometry)
-        });
-        if (r2.ok) {
-          const data = await r2.json();
-          return data;
-        }
-      } catch (e2) {
-        // ignore
-      }
-      const r3 = await fetch(`${baseUrl}/lotes/${id}/coordenadas`, {
-        method: 'PUT',
+      const coords = geometry?.coordinates ? geometry.coordinates : null;
+      const res = await fetch(`${baseUrl}/lotes/${id}`, {
+        method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',
           ...getAuthHeader(token)
         },
-        body: JSON.stringify(geometry)
+        body: JSON.stringify({ coordenadas: coords })
       });
-      if (!r3.ok) {
-        throw new Error('Error al actualizar coordenadas');
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data?.message || 'Error al actualizar coordenadas');
       }
-      const data = await r3.json();
+      const data = await res.json();
       return data;
     } catch (error) {
       console.error('Error al actualizar coordenadas del lote:', error);

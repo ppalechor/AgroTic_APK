@@ -4,7 +4,7 @@ import { View, Image, Platform } from 'react-native';
 
 const LotsMapPage = require('../pages/cultivos/LotsMapPage').default;
 import DashboardPage from '../pages/dashboard/DashboardPage';
-import ModulePage from '../pages/common/ModulePage';
+import IotPage from '../pages/iot/IotPage';
 import CalendarPage from '../pages/calendar/CalendarPage';
 import FinanzasPage from '../pages/finanzas/FinanzasPage';
 import InventoryPage from '../pages/inventario/InventoryPage'; 
@@ -20,6 +20,7 @@ import ActivitiesPage from '../pages/actividades/ActivitiesPage';
 import CustomDrawerContent from './CustomDrawerContent';
 import HeaderActions from './HeaderActions';
 import { Feather } from '@expo/vector-icons';
+import { useAuth } from '../contexts/AuthContext';
 
 const Drawer = createDrawerNavigator();
 
@@ -32,26 +33,38 @@ function LogoHeader() {
 }
 
 export default function AppDrawer() {
+  const { user } = useAuth();
+  const isGuest = String(user?.id_rol?.nombre_rol || user?.nombre_rol || user?.rol || '').toLowerCase() === 'invitado';
   return (
     <Drawer.Navigator
       screenOptions={{ headerLeft: () => <LogoHeader />, headerRight: () => <HeaderActions />, drawerType: Platform.OS === 'web' ? 'permanent' : 'front', drawerStyle: { width: 280 } }}
       drawerContent={(props) => <CustomDrawerContent {...props} />}
     >
-      <Drawer.Screen name="Inicio" component={DashboardPage} options={{ drawerIcon: ({ color, size }) => <Feather name="home" color={color} size={size} /> }} />
-      <Drawer.Screen name="IoT" children={() => <ModulePage title="IoT" />} options={{ drawerIcon: ({ color, size }) => <Feather name="zap" color={color} size={size} /> }} />
-      <Drawer.Screen name="Gestión de Cultivos" component={CropsPage} options={{ drawerIcon: ({ color, size }) => <Feather name="droplet" color={color} size={size} /> }} />
-      <Drawer.Screen name="Gestión de Lotes" component={LotsPage} options={{ drawerIcon: ({ color, size }) => <Feather name="map" color={color} size={size} /> }} />
-      <Drawer.Screen name="Mapa de Lotes" component={LotsMapPage} options={{ drawerIcon: ({ color, size }) => <Feather name="map-pin" color={color} size={size} /> }} />
-      <Drawer.Screen name="Actividades" component={ActivitiesPage} options={{ drawerIcon: ({ color, size }) => <Feather name="activity" color={color} size={size} /> }} />
-      <Drawer.Screen name="Calendario" component={CalendarPage} options={{ drawerIcon: ({ color, size }) => <Feather name="calendar" color={color} size={size} /> }} />
-      <Drawer.Screen name="Gestión de EPA" component={EpasPage} options={{ drawerIcon: ({ color, size }) => <Feather name="package" color={color} size={size} /> }} />
-      <Drawer.Screen name="Tratamientos" component={TratamientosPage} options={{ drawerIcon: ({ color, size }) => <Feather name="shield" color={color} size={size} /> }} />
-      <Drawer.Screen name="Finanzas" component={FinanzasPage} options={{ drawerIcon: ({ color, size }) => <Feather name="dollar-sign" color={color} size={size} /> }} />
-      <Drawer.Screen name="Gestión de Inventario" component={InventoryPage} options={{ drawerIcon: ({ color, size }) => <Feather name="box" color={color} size={size} /> }} />
-      <Drawer.Screen name="Almacenes" component={AlmacenesPage} options={{ drawerIcon: ({ color, size }) => <Feather name="box" color={color} size={size} /> }} />
-      <Drawer.Screen name="Categorías" component={CategoriasPage} options={{ drawerIcon: ({ color, size }) => <Feather name="layers" color={color} size={size} /> }} />
-      <Drawer.Screen name="Reportes" component={ReportesPage} options={{ drawerIcon: ({ color, size }) => <Feather name="bar-chart-2" color={color} size={size} /> }} />
-      <Drawer.Screen name="Usuarios" component={UsersPage} options={{ drawerIcon: ({ color, size }) => <Feather name="users" color={color} size={size} /> }} />
+      {isGuest ? (
+        <>
+          <Drawer.Screen name="Gestión de Cultivos" component={CropsPage} options={{ drawerIcon: ({ color, size }) => <Feather name="droplet" color={color} size={size} /> }} />
+          <Drawer.Screen name="Actividades" component={ActivitiesPage} options={{ drawerIcon: ({ color, size }) => <Feather name="activity" color={color} size={size} /> }} />
+          <Drawer.Screen name="Calendario" component={CalendarPage} options={{ drawerIcon: ({ color, size }) => <Feather name="calendar" color={color} size={size} /> }} />
+        </>
+      ) : (
+        <>
+          <Drawer.Screen name="Inicio" component={DashboardPage} options={{ drawerIcon: ({ color, size }) => <Feather name="home" color={color} size={size} /> }} />
+          <Drawer.Screen name="IoT" component={IotPage} options={{ drawerIcon: ({ color, size }) => <Feather name="zap" color={color} size={size} /> }} />
+          <Drawer.Screen name="Gestión de Cultivos" component={CropsPage} options={{ drawerIcon: ({ color, size }) => <Feather name="droplet" color={color} size={size} /> }} />
+          <Drawer.Screen name="Gestión de Lotes" component={LotsPage} options={{ drawerIcon: ({ color, size }) => <Feather name="map" color={color} size={size} /> }} />
+          <Drawer.Screen name="Mapa de Lotes" component={LotsMapPage} options={{ drawerIcon: ({ color, size }) => <Feather name="map-pin" color={color} size={size} /> }} />
+          <Drawer.Screen name="Actividades" component={ActivitiesPage} options={{ drawerIcon: ({ color, size }) => <Feather name="activity" color={color} size={size} /> }} />
+          <Drawer.Screen name="Calendario" component={CalendarPage} options={{ drawerIcon: ({ color, size }) => <Feather name="calendar" color={color} size={size} /> }} />
+          <Drawer.Screen name="Gestión de EPA" component={EpasPage} options={{ drawerIcon: ({ color, size }) => <Feather name="package" color={color} size={size} /> }} />
+          <Drawer.Screen name="Tratamientos" component={TratamientosPage} options={{ drawerIcon: ({ color, size }) => <Feather name="shield" color={color} size={size} /> }} />
+          <Drawer.Screen name="Finanzas" component={FinanzasPage} options={{ drawerIcon: ({ color, size }) => <Feather name="dollar-sign" color={color} size={size} /> }} />
+          <Drawer.Screen name="Gestión de Inventario" component={InventoryPage} options={{ drawerIcon: ({ color, size }) => <Feather name="box" color={color} size={size} /> }} />
+          <Drawer.Screen name="Almacenes" component={AlmacenesPage} options={{ drawerIcon: ({ color, size }) => <Feather name="box" color={color} size={size} /> }} />
+          <Drawer.Screen name="Categorías" component={CategoriasPage} options={{ drawerIcon: ({ color, size }) => <Feather name="layers" color={color} size={size} /> }} />
+          <Drawer.Screen name="Reportes" component={ReportesPage} options={{ drawerIcon: ({ color, size }) => <Feather name="bar-chart-2" color={color} size={size} /> }} />
+          <Drawer.Screen name="Usuarios" component={UsersPage} options={{ drawerIcon: ({ color, size }) => <Feather name="users" color={color} size={size} /> }} />
+        </>
+      )}
     </Drawer.Navigator>
   );
 }

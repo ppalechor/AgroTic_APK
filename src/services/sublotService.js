@@ -35,6 +35,29 @@ const sublotService = {
     }
   },
 
+  updateCoordinates: async (token, id, geometry) => {
+    try {
+      const coords = geometry?.coordinates ? geometry.coordinates : null;
+      const res = await fetch(`${baseUrl}/sublotes/${id}`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          ...getAuthHeader(token)
+        },
+        body: JSON.stringify({ coordenadas: coords })
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data?.message || 'Error al actualizar coordenadas del sublote');
+      }
+      const data = await res.json();
+      return data;
+    } catch (error) {
+      console.error('Error al actualizar coordenadas del sublote:', error);
+      throw error;
+    }
+  },
+
   getSublotById: async (token, id) => {
     try {
       const res = await fetch(`${baseUrl}/sublotes/${id}`, {

@@ -31,21 +31,35 @@ function normalizeStyle(style) {
   return style;
 }
 
-export function MapView({ style, initialRegion, region, children, onPress }) {
+export function MapView({ style, initialRegion, region, children, onPress, mapType = 'satellite' }) {
   const divRef = useRef(null);
   const mapRef = useRef(null);
+  const tilesGoogleRef = useRef(null);
+  const tilesOSMRef = useRef(null);
 
   useEffect(() => {
     if (!mapRef.current && divRef.current) {
       mapRef.current = L.map(divRef.current, {
         zoomControl: true,
       });
-      // Capa satélite de Google
-      const tiles = L.tileLayer(
+      tilesGoogleRef.current = L.tileLayer(
         'https://{s}.google.com/vt/lyrs=s&x={x}&y={y}&z={z}',
         { subdomains: ['mt0', 'mt1', 'mt2', 'mt3'], attribution: '&copy; Google Maps' }
       );
-      tiles.addTo(mapRef.current);
+      tilesOSMRef.current = L.tileLayer(
+        'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
+        { attribution: '&copy; OpenStreetMap contributors' }
+      );
+      tilesGoogleRef.current.on('tileerror', () => {
+        if (mapRef.current && tilesOSMRef.current && !mapRef.current.hasLayer(tilesOSMRef.current)) {
+          tilesOSMRef.current.addTo(mapRef.current);
+        }
+      });
+      if (mapType === 'satellite') {
+        tilesGoogleRef.current.addTo(mapRef.current);
+      } else {
+        tilesOSMRef.current.addTo(mapRef.current);
+      }
       // Click handler para compatibilidad con onPress de react-native-maps
       if (onPress) {
         mapRef.current.on('click', (e) => {
@@ -65,6 +79,20 @@ export function MapView({ style, initialRegion, region, children, onPress }) {
     return () => {};
   }, [initialRegion, region, onPress]);
 
+  useEffect(() => {
+    const map = mapRef.current;
+    const g = tilesGoogleRef.current;
+    const o = tilesOSMRef.current;
+    if (!map || !g || !o) return;
+    if (mapType === 'satellite') {
+      if (o && map.hasLayer(o)) o.remove();
+      if (g && !map.hasLayer(g)) g.addTo(map);
+    } else {
+      if (g && map.hasLayer(g)) g.remove();
+      if (o && !map.hasLayer(o)) o.addTo(map);
+    }
+  }, [mapType]);
+
   const containerStyle = {
     width: '100%',
     height: '100%',
@@ -80,7 +108,7 @@ export function MapView({ style, initialRegion, region, children, onPress }) {
   );
 }
 
-export function Polygon({ coordinates = [], strokeColor = '#4CAF50', fillColor = 'rgba(76, 175, 80, 0.3)', strokeWidth = 3, onPress }) {
+export function Polygon({ coordinates = [], strokeColor = '#4CAF50', fillColor = 'rgba(76, 175, 80, 0.3)', strokeWidth = 3, onPress, tooltip }) {
   const mapRef = useContext(MapContext);
   const layerRef = useRef(null);
 
@@ -96,6 +124,9 @@ export function Polygon({ coordinates = [], strokeColor = '#4CAF50', fillColor =
       fillOpacity: 0.3,
     });
     layerRef.current.addTo(map);
+    if (tooltip) {
+      layerRef.current.bindTooltip(tooltip, { sticky: true });
+    }
     if (onPress) {
       layerRef.current.on('click', (e) => {
         const { latlng } = e || {};
@@ -108,11 +139,12 @@ export function Polygon({ coordinates = [], strokeColor = '#4CAF50', fillColor =
         if (onPress) {
           layerRef.current.off('click');
         }
+        try { layerRef.current.unbindTooltip(); } catch {}
         layerRef.current.remove();
         layerRef.current = null;
       }
     };
-  }, [mapRef, strokeColor, fillColor, strokeWidth, onPress, JSON.stringify(coordinates)]);
+  }, [mapRef, strokeColor, fillColor, strokeWidth, onPress, tooltip, JSON.stringify(coordinates)]);
 
   return null;
 }

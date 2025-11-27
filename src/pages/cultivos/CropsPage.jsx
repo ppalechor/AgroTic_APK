@@ -23,7 +23,7 @@ function ConfirmModal({ visible, onCancel, onConfirm, text }) {
 }
 
 export default function CropsPage() {
-  const { token } = useAuth();
+  const { token, user } = useAuth();
   const [query, setQuery] = useState('');
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -35,6 +35,7 @@ export default function CropsPage() {
   const [saving, setSaving] = useState(false);
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
+  const isGuest = useMemo(() => String(user?.id_rol?.nombre_rol || user?.nombre_rol || user?.rol || '').toLowerCase() === 'invitado', [user]);
 
   const statusConfig = {
     sembrado: { color: '#1976d2', bgColor: '#e3f2fd' },
@@ -89,20 +90,24 @@ export default function CropsPage() {
           ? new Date(item.fecha_cosecha).toLocaleDateString()
           : '—'}
       </Text>
-      <View style={[styles.cell, styles.actions]}>
-        <Pressable style={styles.iconBtn} onPress={() => { setToEdit(item); setOpenForm(true); }}><Feather name="edit-2" size={16} color="#16A34A" /></Pressable>
-        <Pressable style={styles.iconBtn} onPress={() => { setToDelete(item); setOpenConfirm(true); }}><Feather name="trash-2" size={16} color="#ef4444" /></Pressable>
-      </View>
+      {!isGuest && (
+        <View style={[styles.cell, styles.actions]}>
+          <Pressable style={styles.iconBtn} onPress={() => { setToEdit(item); setOpenForm(true); }}><Feather name="edit-2" size={16} color="#16A34A" /></Pressable>
+          <Pressable style={styles.iconBtn} onPress={() => { setToDelete(item); setOpenConfirm(true); }}><Feather name="trash-2" size={16} color="#ef4444" /></Pressable>
+        </View>
+      )}
     </View>
   );
 
   return (
     <View style={styles.root}>
       <Text style={styles.title}>Gestión de Cultivos</Text>
-      <Pressable style={styles.addBtn} onPress={() => { setToEdit(null); setOpenForm(true); }}>
-        <Feather name="plus" size={16} color="#fff" />
-        <Text style={styles.addBtnText}>Nuevo Cultivo</Text>
-      </Pressable>
+      {!isGuest && (
+        <Pressable style={styles.addBtn} onPress={() => { setToEdit(null); setOpenForm(true); }}>
+          <Feather name="plus" size={16} color="#fff" />
+          <Text style={styles.addBtnText}>Nuevo Cultivo</Text>
+        </Pressable>
+      )}
       <View style={styles.searchBox}>
         <Feather name="search" size={16} color="#64748b" />
         <TextInput
@@ -119,7 +124,7 @@ export default function CropsPage() {
         <Text style={styles.th}>Estado</Text>
         <Text style={styles.th}>Fecha Siembra</Text>
         <Text style={styles.th}>Fecha Cosecha</Text>
-        <Text style={[styles.th, styles.actions]}>Acciones</Text>
+        {!isGuest && <Text style={[styles.th, styles.actions]}>Acciones</Text>}
       </View>
       {loading ? <ActivityIndicator size="large" color="#16A34A" /> : (
         <FlatList

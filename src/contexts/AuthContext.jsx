@@ -12,10 +12,19 @@ export function AuthProvider({ children }) {
   const [error, setError] = useState('');
   const [permissionKeys, setPermissionKeys] = useState([]);
 
+  const KNOWN_RESOURCES = useMemo(() => (
+    ['actividades','alertas','almacenes','categorias','cultivos','epa','finanzas','ingresos','insumos','inventario','lotes','movimientos','permisos','realiza','rol','salidas','sensores','sublotes','tiene','tiporol','tratamientos','usuarios','utiliza']
+  ), []);
+
+  const isAdminOrInstructor = useCallback((u) => {
+    const r = String(u?.nombre_rol || u?.rol || u?.id_rol?.nombre_rol || '').toLowerCase();
+    return r.includes('admin') || r.includes('instructor');
+  }, []);
+
   const refreshPermissions = useCallback(async () => {
     try {
       if (!token) { setPermissionKeys([]); return; }
-      const keys = await permissionService.getMyKeys();
+      const keys = await permissionService.getMyKeys(token);
       setPermissionKeys(Array.isArray(keys) ? keys : []);
     } catch (e) {
       setPermissionKeys([]);
@@ -30,7 +39,15 @@ export function AuthProvider({ children }) {
       setToken(t);
       setAuthToken(t);
       setUser(u || null);
-      try { const keys = await permissionService.getMyKeys(); setPermissionKeys(Array.isArray(keys) ? keys : []); } catch {}
+      try {
+        const keys = await permissionService.getMyKeys(t);
+        const base = Array.isArray(keys) ? keys : [];
+        const wild = isAdminOrInstructor(u) ? KNOWN_RESOURCES.map(r => `${r}:*`) : [];
+        setPermissionKeys([...new Set([...base, ...wild])]);
+      } catch {
+        const wild = isAdminOrInstructor(u) ? KNOWN_RESOURCES.map(r => `${r}:*`) : [];
+        setPermissionKeys(wild);
+      }
       return { token: t, user: u };
     } catch (e) {
       setError(e?.message || 'Error de autenticación');
@@ -68,10 +85,13 @@ export function AuthProvider({ children }) {
     (async () => {
       try {
         if (!token) { setPermissionKeys([]); return; }
-        const keys = await permissionService.getMyKeys();
-        if (mounted) setPermissionKeys(Array.isArray(keys) ? keys : []);
+        const keys = await permissionService.getMyKeys(token);
+        const base = Array.isArray(keys) ? keys : [];
+        const wild = isAdminOrInstructor(user) ? KNOWN_RESOURCES.map(r => `${r}:*`) : [];
+        if (mounted) setPermissionKeys([...new Set([...base, ...wild])]);
       } catch (e) {
-        if (mounted) setPermissionKeys([]);
+        const wild = isAdminOrInstructor(user) ? KNOWN_RESOURCES.map(r => `${r}:*`) : [];
+        if (mounted) setPermissionKeys(wild);
       }
     })();
     return () => { mounted = false; };

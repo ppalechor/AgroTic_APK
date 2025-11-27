@@ -15,7 +15,7 @@ const normalizeAction = (a) => {
 };
 
 export default function PermissionsModal({ visible, onClose, user }) {
-  const { user: authUser, refreshPermissions } = useAuth();
+  const { token, user: authUser, refreshPermissions } = useAuth();
   const [allPerms, setAllPerms] = useState([]);
   const [userKeys, setUserKeys] = useState([]);
   const [recurso, setRecurso] = useState('');
@@ -28,6 +28,8 @@ export default function PermissionsModal({ visible, onClose, user }) {
   const [accionFilter, setAccionFilter] = useState('');
   const [openResourcePicker, setOpenResourcePicker] = useState(false);
   const [openActionPicker, setOpenActionPicker] = useState(false);
+  const [resourceSearch, setResourceSearch] = useState('');
+  const [actionSearch, setActionSearch] = useState('');
   const listRef = useRef(null);
   const [highlightKey, setHighlightKey] = useState('');
   const [highlightUntil, setHighlightUntil] = useState(0);
@@ -36,14 +38,14 @@ export default function PermissionsModal({ visible, onClose, user }) {
     if (!visible) return;
     (async () => {
       try {
-        const ap = await permissionService.list();
+        const ap = await permissionService.list(token);
         setAllPerms(ap || []);
       } catch (e) {
         console.warn('Failed to load perms', e);
       }
       try {
         if (user?.id) {
-          const uk = await permissionService.getUserKeys(user.id);
+          const uk = await permissionService.getUserKeys(user.id, token);
           setUserKeys(uk || []);
         } else {
           setUserKeys([]);
@@ -86,6 +88,19 @@ export default function PermissionsModal({ visible, onClose, user }) {
     Object.values(actionsByResource).forEach(arr => arr.forEach(a => setAll.add(a)));
     return Array.from(setAll).sort();
   }, [recursoFilter, actionsByResource]);
+
+  const resourceOptions = useMemo(() => [{ value: '', label: 'Todos' }, ...resources.map(r => ({ value: r, label: r }))], [resources]);
+  const filteredResourceOptions = useMemo(() => {
+    const q = (resourceSearch || '').toString().trim().toLowerCase();
+    if (!q) return resourceOptions;
+    return resourceOptions.filter(it => it.label.toLowerCase().includes(q));
+  }, [resourceSearch, resourceOptions]);
+  const actionOptions = useMemo(() => [{ value: '', label: 'Todas' }, ...availableActionsForFilter.map(a => ({ value: a, label: a }))], [availableActionsForFilter]);
+  const filteredActionOptions = useMemo(() => {
+    const q = (actionSearch || '').toString().trim().toLowerCase();
+    if (!q) return actionOptions;
+    return actionOptions.filter(it => it.label.toLowerCase().includes(q));
+  }, [actionSearch, actionOptions]);
 
   const selectedKey = recurso && accion ? `${recurso}:${accion}` : '';
   const existingPerm = useMemo(() => normalizedPerms.find(p => p.clave === selectedKey), [normalizedPerms, selectedKey]);
@@ -139,9 +154,9 @@ export default function PermissionsModal({ visible, onClose, user }) {
     if (!recurso || !accion) return Alert.alert('Atención', 'Seleccione recurso y acción');
     if (existingPerm) return Alert.alert('Info', 'Permiso ya existe');
     try {
-      await permissionService.create({ recurso, accion, nombre_permiso: `${recurso}:${accion}`, descripcion: '' });
+      await permissionService.create({ recurso, accion, nombre_permiso: `${recurso}:${accion}`, descripcion: '' }, token);
       Alert.alert('Éxito', 'Permiso creado');
-      const ap = await permissionService.list();
+      const ap = await permissionService.list(token);
       setAllPerms(ap || []);
       setRecurso(''); setAccion('');
     } catch (e) {
@@ -153,11 +168,11 @@ export default function PermissionsModal({ visible, onClose, user }) {
     if (!existingPerm) return;
     setLoadingId(existingPerm.id_permiso);
     try {
-      await permissionService.assign({ id_usuario: user.id, id_permiso: existingPerm.id_permiso });
+      await permissionService.assign({ id_usuario: user.id, id_permiso: existingPerm.id_permiso }, token);
       Alert.alert('Éxito', 'Permiso asignado');
-      const uk = await permissionService.getUserKeys(user.id);
+      const uk = await permissionService.getUserKeys(user.id, token);
       setUserKeys(uk || []);
-      if (authUser?.id === user?.id) refreshPermissions(authUser.id);
+      if (authUser?.id === user?.id) refreshPermissions();
     } catch (e) {
       Alert.alert('Error', e?.message || 'No se pudo asignar');
     } finally { setLoadingId(null); }
@@ -167,9 +182,9 @@ export default function PermissionsModal({ visible, onClose, user }) {
     if (!perm?.id_permiso) return;
     setLoadingId(perm.id_permiso);
     try {
-      await permissionService.assign({ id_usuario: user.id, id_permiso: perm.id_permiso });
+      await permissionService.assign({ id_usuario: user.id, id_permiso: perm.id_permiso }, token);
       Alert.alert('Éxito', 'Permiso asignado');
-      const uk = await permissionService.getUserKeys(user.id);
+      const uk = await permissionService.getUserKeys(user.id, token);
       setUserKeys(uk || []);
       if (authUser?.id === user?.id) refreshPermissions(authUser.id);
     } catch (e) {
@@ -181,11 +196,11 @@ export default function PermissionsModal({ visible, onClose, user }) {
     if (!existingPerm) return;
     setLoadingId(existingPerm.id_permiso);
     try {
-      await permissionService.revoke({ id_usuario: user.id, id_permiso: existingPerm.id_permiso });
+      await permissionService.revoke({ id_usuario: user.id, id_permiso: existingPerm.id_permiso }, token);
       Alert.alert('Éxito', 'Permiso revocado');
-      const uk = await permissionService.getUserKeys(user.id);
+      const uk = await permissionService.getUserKeys(user.id, token);
       setUserKeys(uk || []);
-      if (authUser?.id === user?.id) refreshPermissions(authUser.id);
+      if (authUser?.id === user?.id) refreshPermissions();
     } catch (e) {
       Alert.alert('Error', e?.message || 'No se pudo revocar');
     } finally { setLoadingId(null); }
@@ -253,8 +268,12 @@ export default function PermissionsModal({ visible, onClose, user }) {
           </View>
 
           <View style={styles.rowInputs}>
-            <TextInput placeholder="Recurso" style={styles.input} value={recurso} onChangeText={setRecurso} />
-            <TextInput placeholder="Acción" style={[styles.input, { marginLeft: 8 }]} value={accion} onChangeText={setAccion} />
+            <Pressable style={styles.input} onPress={() => setOpenResourcePicker(true)}>
+              <Text style={{ color: recurso ? '#0f172a' : '#94a3b8' }}>{recurso || 'Recurso'}</Text>
+            </Pressable>
+            <Pressable style={[styles.input, { marginLeft: 8 }]} onPress={() => setOpenActionPicker(true)}>
+              <Text style={{ color: accion ? '#0f172a' : '#94a3b8' }}>{accion || 'Acción'}</Text>
+            </Pressable>
           </View>
 
           <View style={styles.rowActions}>
@@ -305,8 +324,9 @@ export default function PermissionsModal({ visible, onClose, user }) {
         <View style={styles.pickerOverlay}>
           <View style={styles.pickerCard}>
             <Text style={styles.pickerTitle}>Filtrar por Recurso</Text>
+            <TextInput placeholder="Buscar recurso..." style={styles.searchInput} value={resourceSearch} onChangeText={setResourceSearch} />
             <FlatList
-              data={[{ value: '', label: 'Todos' }, ...resources.map(r => ({ value: r, label: r }))]}
+              data={filteredResourceOptions}
               keyExtractor={(it) => it.value === '' ? 'all' : it.value}
               renderItem={({ item }) => (
                 <Pressable
@@ -322,6 +342,7 @@ export default function PermissionsModal({ visible, onClose, user }) {
                       setAccionFilter('');
                       setAccion('');
                     }
+                    setResourceSearch('');
                     setOpenResourcePicker(false);
                   }}
                 >
@@ -337,8 +358,9 @@ export default function PermissionsModal({ visible, onClose, user }) {
         <View style={styles.pickerOverlay}>
           <View style={styles.pickerCard}>
             <Text style={styles.pickerTitle}>Filtrar por Acción</Text>
+            <TextInput placeholder="Buscar acción..." style={styles.searchInput} value={actionSearch} onChangeText={setActionSearch} />
             <FlatList
-              data={[{ value: '', label: 'Todas' }, ...availableActionsForFilter.map(a => ({ value: a, label: a }))]}
+              data={filteredActionOptions}
               keyExtractor={(it) => it.value === '' ? 'all' : it.value}
               renderItem={({ item }) => (
                 <Pressable
@@ -347,6 +369,7 @@ export default function PermissionsModal({ visible, onClose, user }) {
                     setAccionFilter(item.value);
                     setAccion(item.value);
                     if (!recurso && recursoFilter) setRecurso(recursoFilter);
+                    setActionSearch('');
                     setOpenActionPicker(false);
                   }}
                 >

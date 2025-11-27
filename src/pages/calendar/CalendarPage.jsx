@@ -4,7 +4,7 @@ import { Calendar, LocaleConfig } from 'react-native-calendars';
 import { Feather } from '@expo/vector-icons';
 import calendarService from '../../services/calendarService';
 import { useAuth } from '../../contexts/AuthContext';
-import { Picker } from '@react-native-picker/picker';
+// import { Picker } from '@react-native-picker/picker';
 import { listCultivos } from '../../services/api';
 
 // Localización del calendario en español y semana iniciando en lunes
@@ -44,6 +44,8 @@ export default function CalendarPage() {
   const [dayModalVisible, setDayModalVisible] = useState(false);
   const [dayModalEvents, setDayModalEvents] = useState([]);
   const [datePicker, setDatePicker] = useState({ visible: false, type: null, temp: formatDateISO(new Date()) });
+  const [cropSelectVisible, setCropSelectVisible] = useState(false);
+  const [cropSearch, setCropSearch] = useState('');
 
   const fetchMonthEvents = async (dateObj) => {
     setLoading(true);
@@ -84,6 +86,21 @@ export default function CalendarPage() {
     if (cid.length) list = list.filter((ev) => String(ev.id_cultivo || '') === cid);
     return list;
   }, [events, filters.id_cultivo]);
+
+  const filteredCrops = useMemo(() => {
+    const q = cropSearch.trim().toLowerCase();
+    const list = Array.isArray(crops) ? crops : [];
+    if (!q) return list;
+    return list.filter(c => {
+      const name = String(c.nombre_cultivo || c.displayName || c.tipo_cultivo || '').toLowerCase();
+      return name.includes(q);
+    });
+  }, [crops, cropSearch]);
+
+  const getCropName = (cropId) => {
+    const crop = crops.find(c => c.id_cultivo === cropId || c.id === cropId);
+    return crop ? (crop.nombre_cultivo || crop.displayName || crop.tipo_cultivo) : null;
+  };
 
   const markedDates = useMemo(() => {
     const marks = {};
@@ -175,20 +192,14 @@ export default function CalendarPage() {
       <Text style={styles.title}>Calendario</Text>
       <View style={styles.filtersContainer}>
         <View style={styles.filterGroup}>
-          {/* Campo Cultivo con icono */}
+          {/* Campo Cultivo con icono (sin flecha) */}
           <View style={styles.fieldWrapper}>
-            <View style={styles.pickerContainer}>
-              <Picker
-                selectedValue={filters.id_cultivo}
-                onValueChange={(v) => setFilters((prev) => ({ ...prev, id_cultivo: v }))}
-                style={styles.picker}
-              >
-                <Picker.Item label="Cultivo" value="" />
-                {crops.map((crop) => (
-                  <Picker.Item key={crop.id_cultivo || crop.id} label={crop.nombre_cultivo || crop.displayName || crop.tipo_cultivo} value={crop.id_cultivo || crop.id} />
-                ))}
-              </Picker>
-            </View>
+            <Pressable style={styles.selectInput} onPress={() => setCropSelectVisible(true)}>
+              <Text style={[styles.inputText, !filters.id_cultivo && styles.placeholder]}>
+                {filters.id_cultivo ? (getCropName(filters.id_cultivo) || 'Cultivo') : 'Cultivo'}
+              </Text>
+            </Pressable>
+            <Feather name="tag" size={18} color="#9CA3AF" style={styles.inputIcon} />
           </View>
 
           {/* Fecha desde con icono */}
@@ -254,7 +265,7 @@ export default function CalendarPage() {
             </View>
             <View style={styles.modalBody}>
               <View style={styles.detailRow}><Text style={styles.detailLabel}>Fecha</Text><Text style={styles.detailValue}>{selectedEvent?.fecha ? new Date(selectedEvent.fecha).toLocaleDateString() : 'N/A'}</Text></View>
-              <View style={styles.detailRow}><Text style={styles.detailLabel}>Cultivo</Text><Text style={styles.detailValue}>{selectedEvent?.nombre_cultivo || selectedEvent?.cultivo || 'N/A'}</Text></View>
+              <View style={styles.detailRow}><Text style={styles.detailLabel}>Cultivo</Text><Text style={styles.detailValue}>{getCropName(selectedEvent?.id_cultivo) || selectedEvent?.nombre_cultivo || selectedEvent?.cultivo || 'N/A'}</Text></View>
               <View style={styles.detailRow}><Text style={styles.detailLabel}>Descripción</Text><Text style={styles.detailValue}>{selectedEvent?.descripcion || selectedEvent?.titulo || 'N/A'}</Text></View>
               <View style={styles.detailRow}><Text style={styles.detailLabel}>Estado</Text><Text style={styles.detailValue}>{selectedEvent?.estado || 'N/A'}</Text></View>
               <View style={styles.detailRow}><Text style={styles.detailLabel}>Responsable</Text><Text style={styles.detailValue}>{selectedEvent?.responsable || selectedEvent?.usuario || 'N/A'}</Text></View>
@@ -285,7 +296,7 @@ export default function CalendarPage() {
                   </View>
                   <View style={styles.modalBody}>
                     <View style={styles.detailRow}><Text style={styles.detailLabel}>Fecha</Text><Text style={styles.detailValue}>{new Date(ev.fecha).toLocaleDateString('es-ES')}</Text></View>
-                    <View style={styles.detailRow}><Text style={styles.detailLabel}>Cultivo</Text><Text style={styles.detailValue}>{ev?.nombre_cultivo || ev?.cultivo || 'N/A'}</Text></View>
+                    <View style={styles.detailRow}><Text style={styles.detailLabel}>Cultivo</Text><Text style={styles.detailValue}>{getCropName(ev?.id_cultivo) || ev?.nombre_cultivo || ev?.cultivo || 'N/A'}</Text></View>
                     <View style={styles.detailRow}><Text style={styles.detailLabel}>Descripción</Text><Text style={styles.detailValue}>{ev?.descripcion || ev?.titulo || 'N/A'}</Text></View>
                     <View style={styles.detailRow}><Text style={styles.detailLabel}>Estado</Text><Text style={styles.detailValue}>{ev?.estado || 'N/A'}</Text></View>
                     <View style={styles.detailRow}><Text style={styles.detailLabel}>Responsable</Text><Text style={styles.detailValue}>{ev?.responsable || ev?.usuario || 'N/A'}</Text></View>
@@ -330,6 +341,51 @@ export default function CalendarPage() {
           </View>
         </View>
       )}
+
+      {/* Selector de cultivo personalizado */}
+      {cropSelectVisible && (
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalCard}>
+            <View style={styles.modalHeader}>
+              <Feather name="tag" size={18} color="#fff" />
+              <Text style={{ color: '#fff', marginLeft: 8, fontWeight: '700' }}>Seleccionar cultivo</Text>
+            </View>
+            <View style={{ padding: 12 }}>
+              <TextInput
+                style={styles.dateInput}
+                placeholder="Buscar cultivo..."
+                placeholderTextColor="#9CA3AF"
+                value={cropSearch}
+                onChangeText={setCropSearch}
+              />
+              <ScrollView style={{ maxHeight: 280 }}>
+                {filteredCrops.map((crop) => {
+                  const id = crop.id_cultivo || crop.id;
+                  const name = crop.nombre_cultivo || crop.displayName || crop.tipo_cultivo;
+                  const selected = String(filters.id_cultivo || '') === String(id);
+                  return (
+                    <Pressable key={String(id)} style={styles.optionRow} onPress={() => { setFilters(p => ({ ...p, id_cultivo: id })); setCropSelectVisible(false); }}>
+                      <Text style={[styles.optionText, selected && styles.optionSelected]}>{name}</Text>
+                      {selected && <Feather name="check" size={18} color="#16A34A" />}
+                    </Pressable>
+                  );
+                })}
+                {filteredCrops.length === 0 && (
+                  <Text style={styles.empty}>Sin resultados</Text>
+                )}
+              </ScrollView>
+            </View>
+            <View style={{ flexDirection: 'row', justifyContent: 'flex-end', gap: 8, padding: 12 }}>
+              <Pressable style={styles.cancelBtn} onPress={() => setCropSelectVisible(false)}>
+                <Text style={styles.cancelText}>Cerrar</Text>
+              </Pressable>
+              <Pressable style={styles.confirmBtn} onPress={() => setCropSelectVisible(false)}>
+                <Text style={styles.confirmText}>Seleccionar</Text>
+              </Pressable>
+            </View>
+          </View>
+        </View>
+      )}
     </View>
   );
 }
@@ -342,11 +398,15 @@ const styles = StyleSheet.create({
   filterGroup: { flexDirection: 'column', alignItems: 'flex-start', gap: 12 },
   fieldWrapper: { position: 'relative', alignSelf: 'stretch' },
   pickerContainer: { borderWidth: 1, borderColor: '#E4E7EC', borderRadius: 8, height: 44, justifyContent: 'center' },
-  picker: { width: '100%' },
+  picker: { width: '100%', height: 44, color: '#0f172a', backgroundColor: '#fff', borderWidth: 0, paddingHorizontal: 12 },
+  selectInput: { borderWidth: 1, borderColor: '#E4E7EC', borderRadius: 8, paddingHorizontal: 12, height: 44, alignSelf: 'stretch', justifyContent: 'center', backgroundColor: '#fff' },
   dateInput: { borderWidth: 1, borderColor: '#E4E7EC', borderRadius: 8, paddingHorizontal: 12, height: 44, alignSelf: 'stretch', justifyContent: 'center' },
   inputIcon: { position: 'absolute', right: 12, top: 13 },
   inputText: { color: '#0f172a' },
   placeholder: { color: '#9CA3AF' },
+  optionRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: '#F1F5F9' },
+  optionText: { color: '#0f172a' },
+  optionSelected: { fontWeight: '700' },
   countText: { fontSize: 13, color: '#334155', marginBottom: 8 },
   eventRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: '#F1F5F9' },
   eventIcon: { width: 28, alignItems: 'center' },
@@ -382,9 +442,9 @@ const styles = StyleSheet.create({
   cancelText: { color: '#334155', fontWeight: '600' },
   confirmBtn: { paddingHorizontal: 14, paddingVertical: 8, borderRadius: 8, backgroundColor: '#16A34A' },
   confirmText: { color: '#fff', fontWeight: '700' },
-  dayModalContainer: { width: '92%', backgroundColor: '#fff', borderRadius: 12, overflow: 'hidden', elevation: 4 },
+  dayModalContainer: { width: '100%', height: '100%', backgroundColor: '#fff', borderRadius: 0, overflow: 'hidden' },
   dayModalHeaderBar: { backgroundColor: '#23A047', paddingHorizontal: 12, paddingVertical: 10, flexDirection: 'row', alignItems: 'center', gap: 8 },
   dayModalHeaderText: { color: '#fff', fontWeight: '700' },
-  dayModalScroll: { maxHeight: '70%' },
+  dayModalScroll: { flex: 1 },
   dayModalScrollContent: { paddingHorizontal: 12, paddingVertical: 12, gap: 12 },
 });

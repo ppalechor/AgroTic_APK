@@ -79,9 +79,7 @@ export async function requestPasswordReset(email) {
   const url = getForgotPasswordUrl();
   const res = await fetch(url, {
     method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
+    headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ email }),
   });
   const contentType = res.headers.get('content-type') || '';
@@ -98,6 +96,26 @@ export async function requestPasswordReset(email) {
   }
   return data;
 }
+
+export const getResetPasswordUrl = () => `${baseUrl}/auth/reset-password`;
+
+export async function resetPassword(token, password) {
+  const url = getResetPasswordUrl();
+  const res = await fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ token, newPassword: password }),
+  });
+  const contentType = res.headers.get('content-type') || '';
+  const data = contentType.includes('application/json') ? await res.json() : await res.text();
+  if (!res.ok) {
+    const msg = (data?.message) || 'No se pudo restablecer la contraseña';
+    throw new Error(msg);
+  }
+  return data;
+}
+
+ 
 
 export const getRegisterUrl = () => `${baseUrl}/auth/register`;
 
@@ -692,6 +710,20 @@ export async function deleteActividad(id, token) {
   const res = await fetch(`${getActividadesUrl()}/${id}`, { method: 'DELETE', headers: { Authorization: `Bearer ${token}` } });
   if (!res.ok) throw new Error('Error eliminando actividad');
   return true;
+}
+
+export const getRealizaUrl = () => `${baseUrl}/realiza`;
+
+export async function createRealiza(payload, token) {
+  const res = await fetch(getRealizaUrl(), {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+    body: JSON.stringify(payload),
+  });
+  const ct = res.headers.get('content-type') || '';
+  const data = ct.includes('application/json') ? await res.json() : await res.text();
+  if (!res.ok) throw new Error((data?.message) || 'Error creando relación usuario-actividad');
+  return data;
 }
 
 export async function getActividadById(id, token) {

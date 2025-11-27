@@ -2,12 +2,23 @@ import React, { useState, useMemo } from 'react';
 import { View, Text, Pressable, Image, ScrollView, StyleSheet } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 import menuItems from './menuItems';
+import { useAuth } from '../contexts/AuthContext';
 
 export default function CustomDrawerContent({ navigation }) {
   const [expanded, setExpanded] = useState({});
   const toggle = (id) => setExpanded((s) => ({ ...s, [id]: !s[id] }));
 
-  const items = useMemo(() => menuItems, []);
+  const { user } = useAuth();
+  const isGuest = String(user?.id_rol?.nombre_rol || user?.nombre_rol || user?.rol || '').toLowerCase() === 'invitado';
+  const items = useMemo(() => {
+    if (!isGuest) return menuItems;
+    const cultivos = menuItems.find((it) => it.id === 'cultivos');
+    const allowed = ['Gestión de Cultivos', 'Actividades', 'Calendario'];
+    const sub = (cultivos?.submodules || []).filter((sub) => allowed.includes(sub.label));
+    return [
+      { id: 'cultivos', label: 'Cultivos', icon: 'droplet', submodules: sub }
+    ];
+  }, [isGuest]);
 
   const go = (label) => navigation.navigate(label);
 

@@ -10,12 +10,10 @@ export default function ForgotPasswordPage() {
   const [email, setEmail] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
-  const [success, setSuccess] = useState('');
 
   const handleSubmit = async () => {
     setLoading(true);
     setError('');
-    setSuccess('');
     try {
       await requestPasswordReset(email.trim());
       nav.replace('Login', {
@@ -54,13 +52,13 @@ export default function ForgotPasswordPage() {
 
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: '#f4f5f7', alignItems: 'center', justifyContent: 'center', paddingHorizontal: 16 },
-  logo: { width: 100, height: 50, marginBottom: 12 },
-  card: { width: '100%', maxWidth: 420, backgroundColor: '#fff', borderRadius: 12, padding: 16, shadowColor: '#000', shadowOpacity: 0.08, shadowRadius: 10, shadowOffset: { width: 0, height: 4 }, elevation: 3 },
-  title: { fontSize: 18, fontWeight: '700', color: '#16A34A', marginBottom: 8, textAlign: 'center' },
-  message: { fontSize: 13, color: '#334155', marginBottom: 8, textAlign: 'center' },
+  logo: { width: 220, height: 110, marginBottom: 12 },
+  card: { width: '100%', maxWidth: 420, backgroundColor: '#fff', borderRadius: 12, paddingHorizontal: 20, paddingVertical: 18, shadowColor: '#000', shadowOpacity: 0.08, shadowRadius: 10, shadowOffset: { width: 0, height: 4 }, elevation: 3 },
+  title: { fontSize: 20, fontWeight: '700', textAlign: 'center', marginBottom: 6, color: '#16A34A' },
+  message: { fontSize: 13, color: '#334155', textAlign: 'center', marginBottom: 12 },
   divider: { height: 1, backgroundColor: '#E4E7EC', marginVertical: 12 },
-  alertTitle: { fontSize: 14, fontWeight: '700', marginBottom: 4, color: '#0f172a' },
-  alertText: { fontSize: 12, color: '#334155' },
-  alertSuccess: { borderLeftWidth: 4, borderLeftColor: '#16A34A', backgroundColor: '#F0FDF4', padding: 10, borderRadius: 8, marginBottom: 8 },
-  alertError: { borderLeftWidth: 4, borderLeftColor: '#DC2626', backgroundColor: '#FEF2F2', padding: 10, borderRadius: 8, marginBottom: 8 },
+  alertError: { backgroundColor: '#FEF2F2', borderColor: '#FCA5A5', borderWidth: 1, padding: 10, borderRadius: 8, marginBottom: 10 },
+  alertTitle: { color: '#B91C1C', fontWeight: '700', marginBottom: 4 },
+  alertText: { color: '#B91C1C' },
 });
+

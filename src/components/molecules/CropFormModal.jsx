@@ -1,7 +1,16 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, TextInput, Pressable, StyleSheet, Modal, ScrollView, ActivityIndicator } from 'react-native';
 import { Picker } from '@react-native-picker/picker';
-import DateTimePicker from '@react-native-community/datetimepicker';
+import { Calendar, LocaleConfig } from 'react-native-calendars';
+
+LocaleConfig.locales['es'] = {
+  monthNames: ['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre'],
+  monthNamesShort: ['ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic'],
+  dayNames: ['domingo','lunes','martes','miércoles','jueves','viernes','sábado'],
+  dayNamesShort: ['DOM','LUN','MAR','MIÉ','JUE','VIE','SÁB'],
+  today: 'Hoy',
+};
+LocaleConfig.defaultLocale = 'es';
 
 const statusOptions = [
   { value: 'sembrado', label: 'Sembrado' },
@@ -29,6 +38,7 @@ export default function CropFormModal({ visible, onClose, onSubmit, crop, loadin
   });
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [dateField, setDateField] = useState('');
+  const [datePicker, setDatePicker] = useState({ visible: false, type: null, temp: '' });
 
   useEffect(() => {
     if (crop) {
@@ -60,11 +70,13 @@ export default function CropFormModal({ visible, onClose, onSubmit, crop, loadin
     setFormData(prev => ({ ...prev, [field]: value }));
   };
 
-  const handleDateChange = (event, selectedDate) => {
-    setShowDatePicker(false);
-    if (selectedDate) {
-      handleChange(dateField, selectedDate);
-    }
+  const handleDateConfirm = () => {
+    const iso = datePicker.temp;
+    if (!iso) { setDatePicker({ visible: false, type: null, temp: '' }); return; }
+    const d = new Date(iso);
+    if (datePicker.type === 'siembra') handleChange('fecha_siembra', d);
+    if (datePicker.type === 'cosecha') handleChange('fecha_cosecha_estimada', d);
+    setDatePicker({ visible: false, type: null, temp: '' });
   };
 
   const handleSubmit = async () => {
@@ -115,12 +127,12 @@ export default function CropFormModal({ visible, onClose, onSubmit, crop, loadin
               onChangeText={(value) => handleChange('id_insumo', value)}
               keyboardType="numeric"
             />
-            <Pressable style={styles.dateBtn} onPress={() => { setDateField('fecha_siembra'); setShowDatePicker(true); }}>
+            <Pressable style={styles.dateBtn} onPress={() => { setDateField('fecha_siembra'); setDatePicker({ visible: true, type: 'siembra', temp: formData.fecha_siembra ? formData.fecha_siembra.toISOString().slice(0,10) : '' }); }}>
               <Text style={styles.dateText}>
                 Fecha de Siembra: {formData.fecha_siembra ? formData.fecha_siembra.toLocaleDateString() : 'Seleccionar'}
               </Text>
             </Pressable>
-            <Pressable style={styles.dateBtn} onPress={() => { setDateField('fecha_cosecha_estimada'); setShowDatePicker(true); }}>
+            <Pressable style={styles.dateBtn} onPress={() => { setDateField('fecha_cosecha_estimada'); setDatePicker({ visible: true, type: 'cosecha', temp: formData.fecha_cosecha_estimada ? formData.fecha_cosecha_estimada.toISOString().slice(0,10) : '' }); }}>
               <Text style={styles.dateText}>
                 Fecha de Cosecha Estimada: {formData.fecha_cosecha_estimada ? formData.fecha_cosecha_estimada.toLocaleDateString() : 'Seleccionar'}
               </Text>
@@ -155,13 +167,30 @@ export default function CropFormModal({ visible, onClose, onSubmit, crop, loadin
           </View>
         </View>
       </View>
-      {showDatePicker && (
-        <DateTimePicker
-          value={formData[dateField] || new Date()}
-          mode="date"
-          display="default"
-          onChange={handleDateChange}
-        />
+      {datePicker.visible && (
+        <View style={styles.overlay}>
+          <View style={styles.calendarCard}>
+            <View style={styles.modalHeaderBar}>
+              <Text style={{ color: '#fff', fontWeight: '700' }}>{datePicker.type === 'siembra' ? 'Fecha de Siembra' : 'Fecha de Cosecha Estimada'}</Text>
+            </View>
+            <View style={{ padding: 12 }}>
+              <Calendar
+                onDayPress={(d) => setDatePicker((p) => ({ ...p, temp: d.dateString }))}
+                markedDates={datePicker.temp ? { [datePicker.temp]: { selected: true, selectedColor: '#16A34A' } } : undefined}
+                enableSwipeMonths
+                firstDay={1}
+              />
+            </View>
+            <View style={{ flexDirection: 'row', justifyContent: 'flex-end', gap: 8, padding: 12 }}>
+              <Pressable style={styles.cancelBtn} onPress={() => setDatePicker({ visible: false, type: null, temp: '' })}>
+                <Text style={styles.cancelText}>Cancelar</Text>
+              </Pressable>
+              <Pressable style={styles.confirmBtn} onPress={handleDateConfirm}>
+                <Text style={styles.confirmText}>Confirmar</Text>
+              </Pressable>
+            </View>
+          </View>
+        </View>
       )}
     </Modal>
   );
@@ -170,6 +199,7 @@ export default function CropFormModal({ visible, onClose, onSubmit, crop, loadin
 const styles = StyleSheet.create({
   overlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', alignItems: 'center' },
   card: { width: '90%', maxHeight: '80%', backgroundColor: '#fff', borderRadius: 12, padding: 16 },
+  calendarCard: { width: '90%', backgroundColor: '#fff', borderRadius: 12, overflow: 'hidden' },
   title: { fontSize: 18, fontWeight: '700', marginBottom: 16, textAlign: 'center' },
   scroll: { flex: 1 },
   input: { borderWidth: 1, borderColor: '#E4E7EC', borderRadius: 8, padding: 10, marginBottom: 12, fontSize: 14 },
@@ -184,4 +214,9 @@ const styles = StyleSheet.create({
   btnSecondaryText: { color: '#334155', fontSize: 14 },
   btnPrimary: { backgroundColor: '#16A34A' },
   btnPrimaryText: { color: '#fff', fontSize: 14 },
+  modalHeaderBar: { backgroundColor: '#23A047', paddingHorizontal: 12, paddingVertical: 10 },
+  cancelBtn: { paddingHorizontal: 14, paddingVertical: 8, borderRadius: 8, borderWidth: 1, borderColor: '#E4E7EC' },
+  cancelText: { color: '#334155', fontWeight: '600' },
+  confirmBtn: { paddingHorizontal: 14, paddingVertical: 8, borderRadius: 8, backgroundColor: '#16A34A' },
+  confirmText: { color: '#fff', fontWeight: '700' },
 });

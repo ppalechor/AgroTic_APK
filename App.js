@@ -1,6 +1,7 @@
 import { StatusBar } from 'expo-status-bar';
 import React, { useEffect } from 'react';
 import { NavigationContainer } from '@react-navigation/native';
+import * as Linking from 'expo-linking';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { AuthProvider, useAuth } from './src/contexts/AuthContext';import { AlertProvider } from './src/contexts/AlertContext';
 import LoginPage from './src/pages/auth/LoginPage';
@@ -20,7 +21,7 @@ function RootNavigator() {
   const initial = token ? 'App' : 'Login';
   const webPrefix = (process.env.EXPO_PUBLIC_WEB_URL || 'http://localhost:3000').replace(/\/+$/, '');
   const linking = {
-    prefixes: [webPrefix],
+    prefixes: [Linking.createURL('/'), webPrefix],
     config: {
       screens: {
         Login: 'login',

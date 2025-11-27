@@ -1,5 +1,5 @@
 import { StatusBar } from 'expo-status-bar';
-import React from 'react';
+import React, { useEffect } from 'react';
 import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { AuthProvider, useAuth } from './src/contexts/AuthContext';import { AlertProvider } from './src/contexts/AlertContext';
@@ -10,6 +10,8 @@ import ForgotPasswordPage from './src/pages/auth/ForgotPasswordPage';
 import AppDrawer from './src/navigation/AppDrawer';
 import { View } from 'react-native';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import * as Notifications from 'expo-notifications';
+import { Platform } from 'react-native';
 
 const Stack = createNativeStackNavigator();
 
@@ -44,6 +46,27 @@ function RootNavigator() {
 const queryClient = new QueryClient();
 
 export default function App() {
+  useEffect(() => {
+    Notifications.setNotificationHandler({
+      handleNotification: async () => ({ shouldShowAlert: true, shouldPlaySound: false, shouldSetBadge: false })
+    });
+    (async () => {
+      try {
+        const settings = await Notifications.getPermissionsAsync();
+        let status = settings.status;
+        if (status !== 'granted') {
+          const req = await Notifications.requestPermissionsAsync();
+          status = req.status;
+        }
+        if (Platform.OS === 'android') {
+          await Notifications.setNotificationChannelAsync('default', {
+            name: 'default', importance: Notifications.AndroidImportance.DEFAULT,
+            vibrationPattern: [0, 250, 250, 250], lightColor: '#FF231F7C'
+          });
+        }
+      } catch {}
+    })();
+  }, []);
   return (
     <View style={{flex:1}}>
       <QueryClientProvider client={queryClient}>

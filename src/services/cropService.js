@@ -31,9 +31,11 @@ const cropService = {
       const res = await fetch(url.toString(), {
         headers: getAuthHeader(token)
       });
-      const data = await res.json();
+      const ct = res.headers.get('content-type') || '';
+      const data = ct.includes('application/json') ? await res.json() : await res.text();
       if (!res.ok) {
-        throw new Error(data?.message || 'Error al obtener cultivos');
+        const msg = typeof data === 'string' ? data.slice(0, 140) : (data?.message || 'Error al obtener cultivos');
+        throw new Error(msg);
       }
 
       if (data && data.items) {
@@ -63,9 +65,11 @@ const cropService = {
       const res = await fetch(`${baseUrl}/cultivos/${id}`, {
         headers: getAuthHeader(token)
       });
-      const data = await res.json();
+      const ct = res.headers.get('content-type') || '';
+      const data = ct.includes('application/json') ? await res.json() : await res.text();
       if (!res.ok) {
-        throw new Error(data?.message || 'Error al obtener el cultivo');
+        const msg = typeof data === 'string' ? data.slice(0, 140) : (data?.message || 'Error al obtener el cultivo');
+        throw new Error(msg);
       }
       return mapCrop(data);
     } catch (error) {
@@ -88,9 +92,11 @@ const cropService = {
         },
         body: JSON.stringify(cropData)
       });
-      const data = await res.json();
+      const ct = res.headers.get('content-type') || '';
+      const data = ct.includes('application/json') ? await res.json() : await res.text();
       if (!res.ok) {
-        throw new Error(data?.message || 'Error al crear el cultivo');
+        const msg = typeof data === 'string' ? data.slice(0, 140) : (data?.message || 'Error al crear el cultivo');
+        throw new Error(msg);
       }
       return mapCrop(data);
     } catch (error) {
@@ -113,9 +119,11 @@ const cropService = {
         },
         body: JSON.stringify(cropData)
       });
-      const data = await res.json();
+      const ct = res.headers.get('content-type') || '';
+      const data = ct.includes('application/json') ? await res.json() : await res.text();
       if (!res.ok) {
-        throw new Error(data?.message || 'Error al actualizar el cultivo');
+        const msg = typeof data === 'string' ? data.slice(0, 140) : (data?.message || 'Error al actualizar el cultivo');
+        throw new Error(msg);
       }
       return mapCrop(data);
     } catch (error) {
@@ -134,8 +142,10 @@ const cropService = {
         headers: getAuthHeader(token)
       });
       if (!res.ok) {
-        const data = await res.json();
-        throw new Error(data?.message || 'Error al eliminar el cultivo');
+        const ct = res.headers.get('content-type') || '';
+        const data = ct.includes('application/json') ? await res.json() : await res.text();
+        const msg = typeof data === 'string' ? data.slice(0, 140) : (data?.message || 'Error al eliminar el cultivo');
+        throw new Error(msg);
       }
       return true;
     } catch (error) {
@@ -158,9 +168,11 @@ const cropService = {
       const res = await fetch(`${baseUrl}/cultivos/estadisticas`, {
         headers: getAuthHeader(token)
       });
-      const data = await res.json();
+      const ct = res.headers.get('content-type') || '';
+      const data = ct.includes('application/json') ? await res.json() : await res.text();
       if (!res.ok) {
-        throw new Error(data?.message || 'Error al obtener estadísticas');
+        const msg = typeof data === 'string' ? data.slice(0, 140) : (data?.message || 'Error al obtener estadísticas');
+        throw new Error(msg);
       }
       return data;
     } catch (error) {
@@ -179,9 +191,11 @@ const cropService = {
     if (to) params.append('to', to);
     const url = `${baseUrl}/finanzas/resumen${params.toString() ? `?${params.toString()}` : ''}`;
     const res = await fetch(url, { headers: getAuthHeader(token) });
-    const data = await res.json();
+    const ct = res.headers.get('content-type') || '';
+    const data = ct.includes('application/json') ? await res.json() : await res.text();
     if (!res.ok) {
-      throw new Error(data?.message || 'Error al obtener margen');
+      const msg = typeof data === 'string' ? data.slice(0, 140) : (data?.message || 'Error al obtener margen');
+      throw new Error(msg);
     }
     const d = data || {};
     const ingresos = parseFloat(d.ingresosTotal ?? d.ingresos ?? 0) || 0;

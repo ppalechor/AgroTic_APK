@@ -5,7 +5,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { useNavigation } from '@react-navigation/native';
 import ProfileModal from '../components/molecules/ProfileModal';
 import { listActividades } from '../services/api';
-import * as Notifications from 'expo-notifications';
+let NotificationsModule = null;
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 export default function HeaderActions() {
@@ -23,6 +23,30 @@ export default function HeaderActions() {
   useEffect(() => {
     let mounted = true;
     let timer;
+    const registerFcm = async () => {
+      try {
+        if (!token) return;
+        const ConstantsModule = await import('expo-constants');
+        const isExpoGo = (ConstantsModule?.default?.appOwnership === 'expo');
+        if (isExpoGo) return;
+        const key = 'fcm_registered_token';
+        const already = await AsyncStorage.getItem(key);
+        if (!NotificationsModule) {
+          NotificationsModule = await import('expo-notifications');
+        }
+        const devToken = await NotificationsModule.getDevicePushTokenAsync();
+        const value = String(devToken?.data || '');
+        if (!value) return;
+        if (already === value) return;
+        const base = process.env.EXPO_PUBLIC_API_URL || 'http://localhost:3001';
+        await fetch(`${base}/usuarios/me/fcm-token`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+          body: JSON.stringify({ token: value })
+        });
+        await AsyncStorage.setItem(key, value);
+      } catch {}
+    };
     const fetchNotifs = async () => {
       try {
         if (!token) { setNotifications([]); return; }
@@ -49,7 +73,10 @@ export default function HeaderActions() {
             const when = n.fecha ? new Date(n.fecha) : null;
             const inFuture = when && when.getTime() > now.getTime();
             if (!scheduled.has(String(n.id)) && inFuture) {
-              await Notifications.scheduleNotificationAsync({
+              if (!NotificationsModule) {
+                NotificationsModule = await import('expo-notifications');
+              }
+              await NotificationsModule.scheduleNotificationAsync({
                 content: { title: `Actividad pendiente: ${n.tipo}`, body: n.detalles || 'Revisa tus actividades' },
                 trigger: when
               });
@@ -63,6 +90,7 @@ export default function HeaderActions() {
       }
     };
     fetchNotifs();
+    registerFcm();
     timer = setInterval(fetchNotifs, 60000);
     return () => { mounted = false; if (timer) clearInterval(timer); };
   }, [token, userName, userEmail]);

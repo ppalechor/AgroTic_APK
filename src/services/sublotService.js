@@ -21,9 +21,11 @@ const sublotService = {
       const res = await fetch(`${baseUrl}/sublotes`, {
         headers: getAuthHeader(token)
       });
-      const data = await res.json();
+      const ct = res.headers.get('content-type') || '';
+      const data = ct.includes('application/json') ? await res.json() : await res.text();
       if (!res.ok) {
-        throw new Error(data?.message || 'Error al obtener sublotes');
+        const msg = typeof data === 'string' ? data.slice(0, 140) : (data?.message || 'Error al obtener sublotes');
+        throw new Error(msg);
       }
       return Array.isArray(data) ? data.map(mapSublot) : [];
     } catch (error) {
@@ -46,11 +48,13 @@ const sublotService = {
         },
         body: JSON.stringify({ coordenadas: coords })
       });
+      const ct = res.headers.get('content-type') || '';
       if (!res.ok) {
-        const data = await res.json().catch(() => ({}));
-        throw new Error(data?.message || 'Error al actualizar coordenadas del sublote');
+        const errData = ct.includes('application/json') ? await res.json().catch(() => ({})) : await res.text();
+        const msg = typeof errData === 'string' ? errData.slice(0, 140) : (errData?.message || 'Error al actualizar coordenadas del sublote');
+        throw new Error(msg);
       }
-      const data = await res.json();
+      const data = ct.includes('application/json') ? await res.json() : await res.text();
       return data;
     } catch (error) {
       console.error('Error al actualizar coordenadas del sublote:', error);
@@ -60,12 +64,14 @@ const sublotService = {
 
   getSublotById: async (token, id) => {
     try {
-      const res = await fetch(`${baseUrl}/sublotes/${id}`, {
+      const res = await fetch(`${baseUrl}/sublotes/${id}` , {
         headers: getAuthHeader(token)
       });
-      const data = await res.json();
+      const ct = res.headers.get('content-type') || '';
+      const data = ct.includes('application/json') ? await res.json() : await res.text();
       if (!res.ok) {
-        throw new Error(data?.message || 'Error al obtener el sublote');
+        const msg = typeof data === 'string' ? data.slice(0, 140) : (data?.message || 'Error al obtener el sublote');
+        throw new Error(msg);
       }
       return mapSublot(data);
     } catch (error) {
@@ -93,9 +99,11 @@ const sublotService = {
         },
         body: JSON.stringify(formattedData)
       });
-      const data = await res.json();
+      const ct = res.headers.get('content-type') || '';
+      const data = ct.includes('application/json') ? await res.json() : await res.text();
       if (!res.ok) {
-        throw new Error(data?.message || 'Error al crear sublote');
+        const msg = typeof data === 'string' ? data.slice(0, 140) : (data?.message || 'Error al crear sublote');
+        throw new Error(msg);
       }
       return mapSublot(data);
     } catch (error) {
@@ -134,9 +142,11 @@ const sublotService = {
         },
         body: JSON.stringify(formattedData)
       });
-      const data = await res.json();
+      const ct = res.headers.get('content-type') || '';
+      const data = ct.includes('application/json') ? await res.json() : await res.text();
       if (!res.ok) {
-        throw new Error(data?.message || 'Error al actualizar sublote');
+        const msg = typeof data === 'string' ? data.slice(0, 140) : (data?.message || 'Error al actualizar sublote');
+        throw new Error(msg);
       }
       return mapSublot(data);
     } catch (error) {
@@ -166,8 +176,10 @@ const sublotService = {
         headers: getAuthHeader(token)
       });
       if (!res.ok) {
-        const data = await res.json();
-        throw new Error(data?.message || 'Error al eliminar sublote');
+        const ct = res.headers.get('content-type') || '';
+        const data = ct.includes('application/json') ? await res.json() : await res.text();
+        const msg = typeof data === 'string' ? data.slice(0, 140) : (data?.message || 'Error al eliminar sublote');
+        throw new Error(msg);
       }
     } catch (error) {
       console.error('Error al eliminar sublote:', error);
@@ -183,9 +195,11 @@ const sublotService = {
       const res = await fetch(`${baseUrl}/sublotes/${id}/sensores`, {
         headers: getAuthHeader(token)
       });
-      const data = await res.json();
+      const ct = res.headers.get('content-type') || '';
+      const data = ct.includes('application/json') ? await res.json() : await res.text();
       if (!res.ok) {
-        throw new Error(data?.message || 'Error al obtener sensores del sublote');
+        const msg = typeof data === 'string' ? data.slice(0, 140) : (data?.message || 'Error al obtener sensores del sublote');
+        throw new Error(msg);
       }
       return Array.isArray(data) ? data : [];
     } catch (error) {
@@ -202,9 +216,11 @@ const sublotService = {
       const res = await fetch(`${baseUrl}/sublotes/${id}/estadisticas`, {
         headers: getAuthHeader(token)
       });
-      const data = await res.json();
+      const ct = res.headers.get('content-type') || '';
+      const data = ct.includes('application/json') ? await res.json() : await res.text();
       if (!res.ok) {
-        throw new Error(data?.message || 'Error al obtener estadísticas del sublote');
+        const msg = typeof data === 'string' ? data.slice(0, 140) : (data?.message || 'Error al obtener estadísticas del sublote');
+        throw new Error(msg);
       }
       return data || {};
     } catch (error) {

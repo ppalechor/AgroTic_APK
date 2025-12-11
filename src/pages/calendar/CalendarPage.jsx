@@ -257,6 +257,9 @@ export default function CalendarPage() {
       {detailVisible && (
         <View style={styles.modalOverlay}>
           <View style={styles.modalCard}>
+            <Pressable style={styles.modalCloseX} onPress={() => { setDetailVisible(false); setSelectedEvent(null); }}>
+              <Feather name="x" size={18} color="#fff" />
+            </Pressable>
             <View style={styles.modalHeader}>
               <Feather name="calendar" size={18} color="#fff" />
               <View style={[styles.typePill, selectedEvent?.tipo === 'actividad' ? styles.pillActividad : selectedEvent?.tipo === 'siembra' ? styles.pillSiembra : styles.pillCosecha]}>
@@ -285,6 +288,9 @@ export default function CalendarPage() {
               <Feather name="calendar" size={18} color="#fff" />
               <Text style={styles.dayModalHeaderText}>Actividades de {selectedDay}</Text>
             </View>
+            <Pressable style={styles.modalCloseX} onPress={() => { setDayModalVisible(false); setDayModalEvents([]); }}>
+              <Feather name="x" size={18} color="#fff" />
+            </Pressable>
             <ScrollView style={styles.dayModalScroll} contentContainerStyle={styles.dayModalScrollContent}>
               {dayModalEvents.map((ev) => (
                 <View key={String(ev.id)} style={styles.modalCard}>
@@ -427,6 +433,7 @@ const styles = StyleSheet.create({
   modalOverlay: { position: 'absolute', left: 0, right: 0, top: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.3)', alignItems: 'center', justifyContent: 'center' },
   modalCard: { width: '90%', backgroundColor: '#fff', borderRadius: 12, overflow: 'hidden', elevation: 4 },
   modalHeader: { backgroundColor: '#23A047', paddingHorizontal: 12, paddingVertical: 10, flexDirection: 'row', alignItems: 'center', gap: 8 },
+  modalCloseX: { position: 'absolute', top: 8, right: 8, width: 28, height: 28, borderRadius: 14, backgroundColor: '#0f172a', alignItems: 'center', justifyContent: 'center', opacity: 0.85 },
   typePill: { marginLeft: 8, paddingHorizontal: 10, paddingVertical: 4, borderRadius: 999 },
   pillActividad: { backgroundColor: '#2080FE' },
   pillSiembra: { backgroundColor: '#16A34A' },

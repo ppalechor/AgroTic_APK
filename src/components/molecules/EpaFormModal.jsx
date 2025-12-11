@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Modal, View, Text, StyleSheet, Pressable } from 'react-native';
+import { Modal, View, Text, StyleSheet, Pressable, Image, Platform } from 'react-native';
 import Input from '../atoms/Input';
 import Button from '../atoms/Button';
 
@@ -10,15 +10,17 @@ const TYPES = [
 ];
 
 export default function EpaFormModal({ visible, onClose, onSubmit, epa }) {
-  const [form, setForm] = useState({ nombre_epa: '', descripcion: '', tipo: 'enfermedad', estado: 'activo', imagen_referencia: '' });
+  const [form, setForm] = useState({ nombre_epa: '', descripcion: '', tipo: 'enfermedad', estado: 'activo' });
   const [openType, setOpenType] = useState(false);
   const [openEstado, setOpenEstado] = useState(false);
   const [error, setError] = useState('');
+  const [imageFile, setImageFile] = useState(null);
 
   useEffect(() => {
-    if (epa) setForm({ nombre_epa: epa.nombre_epa || epa.nombre || '', descripcion: epa.descripcion || '', tipo: epa.tipo || 'enfermedad', estado: epa.estado || 'activo', imagen_referencia: epa.imagen_referencia || '' });
-    else setForm({ nombre_epa: '', descripcion: '', tipo: 'enfermedad', estado: 'activo', imagen_referencia: '' });
+    if (epa) setForm({ nombre_epa: epa.nombre_epa || epa.nombre || '', descripcion: epa.descripcion || '', tipo: epa.tipo || 'enfermedad', estado: epa.estado || 'activo' });
+    else setForm({ nombre_epa: '', descripcion: '', tipo: 'enfermedad', estado: 'activo' });
     setError('');
+    setImageFile(null);
   }, [epa, visible]);
 
   const handleSave = async () => {
@@ -29,10 +31,55 @@ export default function EpaFormModal({ visible, onClose, onSubmit, epa }) {
     if (!form.tipo) errs.push('tipo');
     if (errs.length) { setError('Por favor, completa los campos requeridos'); return; }
     try {
-      await onSubmit({ ...form });
+      await onSubmit({ ...form }, imageFile);
       onClose();
     } catch (e) {
       setError(e?.message || 'Error guardando');
+    }
+  };
+
+
+  const handlePickFromCamera = async () => {
+    try {
+      setError('');
+      if (Platform.OS === 'web') {
+        setError('La cámara no está soportada en web. Usa la app móvil.');
+        return;
+      }
+      const mod = await import('expo-image-picker');
+      const perm = await mod.requestCameraPermissionsAsync();
+      if (perm.status !== 'granted') { setError('Permiso de cámara denegado'); return; }
+      const res = await mod.launchCameraAsync({ allowsEditing: true, quality: 0.7 });
+      if (!res.canceled && res.assets && res.assets[0]?.uri) {
+        const asset = res.assets[0];
+        const name = asset.fileName || 'epa.jpg';
+        const type = asset.type === 'video' ? 'image/jpeg' : 'image/jpeg';
+        setImageFile({ uri: asset.uri, name, type });
+      }
+    } catch (e) {
+      setError('Instala expo-image-picker para usar la cámara');
+    }
+  };
+
+  const handlePickFromLibrary = async () => {
+    try {
+      setError('');
+      if (Platform.OS === 'web') {
+        setError('La galería no está soportada en web. Usa la app móvil.');
+        return;
+      }
+      const mod = await import('expo-image-picker');
+      const perm = await mod.requestMediaLibraryPermissionsAsync();
+      if (perm.status !== 'granted') { setError('Permiso de galería denegado'); return; }
+      const res = await mod.launchImageLibraryAsync({ allowsMultipleSelection: false, allowsEditing: true, quality: 0.8 });
+      if (!res.canceled && res.assets && res.assets[0]?.uri) {
+        const asset = res.assets[0];
+        const name = asset.fileName || 'epa.jpg';
+        const type = 'image/jpeg';
+        setImageFile({ uri: asset.uri, name, type });
+      }
+    } catch (e) {
+      setError('Instala expo-image-picker para seleccionar imágenes');
     }
   };
 
@@ -70,8 +117,19 @@ export default function EpaFormModal({ visible, onClose, onSubmit, epa }) {
               ))}
             </View>
           ) : null}
-          <Input label="Imagen de referencia (URL)" value={form.imagen_referencia} onChangeText={(v) => setForm((p) => ({ ...p, imagen_referencia: v }))} placeholder="https://..." />
+          <View style={{ flexDirection: 'row', marginTop: 8 }}>
+            <Button title="Tomar foto" variant="secondary" onPress={handlePickFromCamera} />
+            <View style={{ width: 8 }} />
+            <Button title="Seleccionar imagen" variant="secondary" onPress={handlePickFromLibrary} />
+          </View>
+          {imageFile ? (
+            <View style={{ marginTop: 8, flexDirection: 'row', alignItems: 'center' }}>
+              <Image source={{ uri: imageFile.uri }} style={{ width: 72, height: 72, borderRadius: 8, borderWidth: 1, borderColor: '#E5E7EB' }} />
+              <Text style={{ marginLeft: 8, fontSize: 12, color: '#334155' }}>{imageFile.name}</Text>
+            </View>
+          ) : null}
           <View style={styles.actions}>
+            <View style={{ flex: 1 }} />
             <Button title="Cancelar" variant="secondary" onPress={onClose} />
             <View style={{ width: 12 }} />
             <Button title="Guardar" onPress={handleSave} />

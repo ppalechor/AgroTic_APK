@@ -1,6 +1,7 @@
 import React from 'react';
 import { Modal, View, Text, StyleSheet, ScrollView, Image } from 'react-native';
 import Button from '../atoms/Button';
+import { baseUrl } from '../../services/api';
 
 export default function EpaDetailModal({ visible, onClose, epa }) {
   if (!visible || !epa) return null;
@@ -15,6 +16,14 @@ export default function EpaDetailModal({ visible, onClose, epa }) {
   const estadoStyle = estado === 'inactivo'
     ? { bg: '#ECEFF1', color: '#37474F', label: 'Inactivo' }
     : { bg: '#E8F5E9', color: '#2E7D32', label: 'Activo' };
+
+  const rawImg = epa.imagen_referencia ? String(epa.imagen_referencia) : '';
+  let imageUri = '';
+  try {
+    imageUri = rawImg ? (rawImg.startsWith('http') ? rawImg : new URL(rawImg.replace(/^\/+/, ''), `${baseUrl}/`).toString()) : '';
+  } catch {
+    imageUri = rawImg;
+  }
 
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
@@ -32,7 +41,7 @@ export default function EpaDetailModal({ visible, onClose, epa }) {
             </View>
             <View style={styles.section}><Text style={styles.label}>Imagen de referencia:</Text>
               {epa.imagen_referencia ? (
-                <Image source={{ uri: epa.imagen_referencia }} style={styles.image} />
+                <Image source={{ uri: imageUri }} style={styles.image} />
               ) : (
                 <View style={styles.noImage}><Text style={styles.noImageText}>No hay imagen disponible</Text></View>
               )}

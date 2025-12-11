@@ -1,6 +1,5 @@
 import React, { useEffect, useRef, createContext, useContext } from 'react';
 import L from 'leaflet';
-import 'leaflet/dist/leaflet.css';
 
 // Contexto para compartir la instancia del mapa con las capas
 const MapContext = createContext(null);
@@ -36,8 +35,22 @@ export function MapView({ style, initialRegion, region, children, onPress, mapTy
   const mapRef = useRef(null);
   const tilesGoogleRef = useRef(null);
   const tilesOSMRef = useRef(null);
+  const tilesOSMPlainRef = useRef(null);
+  const tilesCartoRef = useRef(null);
+  const cssInjectedRef = useRef(false);
 
   useEffect(() => {
+    if (!cssInjectedRef.current && typeof document !== 'undefined') {
+      const id = 'leaflet-css';
+      if (!document.getElementById(id)) {
+        const link = document.createElement('link');
+        link.id = id;
+        link.rel = 'stylesheet';
+        link.href = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css';
+        document.head.appendChild(link);
+      }
+      cssInjectedRef.current = true;
+    }
     if (!mapRef.current && divRef.current) {
       mapRef.current = L.map(divRef.current, {
         zoomControl: true,
@@ -50,9 +63,26 @@ export function MapView({ style, initialRegion, region, children, onPress, mapTy
         'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
         { attribution: '&copy; OpenStreetMap contributors' }
       );
+      tilesOSMPlainRef.current = L.tileLayer(
+        'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+        { attribution: '&copy; OpenStreetMap contributors' }
+      );
+      tilesCartoRef.current = L.tileLayer(
+        'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png',
+        { subdomains: ['a', 'b', 'c', 'd'], attribution: '&copy; CARTO' }
+      );
       tilesGoogleRef.current.on('tileerror', () => {
-        if (mapRef.current && tilesOSMRef.current && !mapRef.current.hasLayer(tilesOSMRef.current)) {
-          tilesOSMRef.current.addTo(mapRef.current);
+        const map = mapRef.current;
+        const osm = tilesOSMRef.current;
+        const carto = tilesCartoRef.current;
+        const osmPlain = tilesOSMPlainRef.current;
+        if (!map) return;
+        if (osm && !map.hasLayer(osm)) {
+          osm.addTo(map);
+        } else if (osmPlain && !map.hasLayer(osmPlain)) {
+          osmPlain.addTo(map);
+        } else if (carto && !map.hasLayer(carto)) {
+          carto.addTo(map);
         }
       });
       if (mapType === 'satellite') {
@@ -83,13 +113,26 @@ export function MapView({ style, initialRegion, region, children, onPress, mapTy
     const map = mapRef.current;
     const g = tilesGoogleRef.current;
     const o = tilesOSMRef.current;
+    const op = tilesOSMPlainRef.current;
+    const c = tilesCartoRef.current;
     if (!map || !g || !o) return;
     if (mapType === 'satellite') {
       if (o && map.hasLayer(o)) o.remove();
+      if (op && map.hasLayer(op)) op.remove();
+      if (c && map.hasLayer(c)) c.remove();
       if (g && !map.hasLayer(g)) g.addTo(map);
     } else {
       if (g && map.hasLayer(g)) g.remove();
+      if (op && map.hasLayer(op)) op.remove();
+      if (c && map.hasLayer(c)) c.remove();
       if (o && !map.hasLayer(o)) o.addTo(map);
+      o.on('tileerror', () => {
+        if (op && !map.hasLayer(op)) {
+          op.addTo(map);
+        } else if (c && !map.hasLayer(c)) {
+          c.addTo(map);
+        }
+      });
     }
   }, [mapType]);
 

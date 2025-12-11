@@ -4,7 +4,7 @@ import { Picker } from '@react-native-picker/picker';
 import { Feather } from '@expo/vector-icons';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { useAuth } from '../../contexts/AuthContext';
-import { listInventario, listMovimientos, listCategorias, listAlmacenes, listInsumos } from '../../services/api';
+import { listInventario, listMovimientos, listCategorias, listAlmacenes, listInsumos, listInventarioStockBajo } from '../../services/api';
 
 export default function ReportesPage() {
   const { token } = useAuth();
@@ -22,6 +22,7 @@ export default function ReportesPage() {
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
   const [lowThreshold, setLowThreshold] = useState(5);
+  const [stockBajoItems, setStockBajoItems] = useState([]);
   const [presetSel, setPresetSel] = useState('');
   const [showFromPicker, setShowFromPicker] = useState(false);
   const [showToPicker, setShowToPicker] = useState(false);
@@ -57,7 +58,18 @@ export default function ReportesPage() {
 
       const totalItems = enrichedItems.length;
       const stockTotal = enrichedItems.reduce((sum, it) => sum + Number(it.cantidad_stock || 0), 0);
-      const bajoStock = enrichedItems.filter(it => Number(it.cantidad_stock || 0) <= Number(lowThreshold)).length;
+      let bajoStock = enrichedItems.filter(it => Number(it.cantidad_stock || 0) <= Number(lowThreshold)).length;
+
+      try {
+        const stockResp = await listInventarioStockBajo(token, Number(lowThreshold) || 10);
+        const enrichedStock = stockResp.map(i => ({
+          ...i,
+          categoria: i.categoria || insumoMap[String(i.id_insumo || '')]?.cat || catMap[String(i.id_categoria || '')] || '',
+          almacen: i.almacen || insumoMap[String(i.id_insumo || '')]?.alm || almMap[String(i.id_almacen || '')] || '',
+        }));
+        setStockBajoItems(enrichedStock);
+        bajoStock = enrichedStock.length;
+      } catch {}
 
       setResumen({ totalItems, stockTotal, bajoStock });
       setItems(enrichedItems);
@@ -107,7 +119,9 @@ export default function ReportesPage() {
   };
 
   const filteredItems = items.filter(it => matchesFilters(it.categoria, it.almacen)).filter(it => includesSearch(it.nombre_insumo || ''));
-  const lowStockItems = filteredItems.filter(it => Number(it.cantidad_stock || 0) <= Number(lowThreshold));
+  const lowStockItems = stockBajoItems.length > 0
+    ? stockBajoItems.filter(it => matchesFilters(it.categoria, it.almacen)).filter(it => includesSearch(it.nombre_insumo || ''))
+    : filteredItems.filter(it => Number(it.cantidad_stock || 0) <= Number(lowThreshold));
   const recentMovs = movs
     .filter(m => matchesFilters(m.categoria, m.almacen))
     .filter(m => inRange(m.fecha_movimiento))

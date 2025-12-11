@@ -20,11 +20,14 @@ const lotService = {
       const res = await fetch(`${baseUrl}/lotes`, {
         headers: getAuthHeader(token)
       });
-      const data = await res.json();
+      const ct = res.headers.get('content-type') || '';
+      const data = ct.includes('application/json') ? await res.json() : await res.text();
       if (!res.ok) {
-        throw new Error(data?.message || 'Error al obtener lotes');
+        const msg = typeof data === 'string' ? data.slice(0, 140) : (data?.message || 'Error al obtener lotes');
+        throw new Error(msg);
       }
-      return Array.isArray(data) ? data.map(mapLot) : [];
+      const arr = Array.isArray(data) ? data : Array.isArray(data?.items) ? data.items : [];
+      return arr.map(mapLot);
     } catch (error) {
       console.error('Error al obtener lotes:', error);
       if (error.response?.status === 403) {
@@ -39,9 +42,11 @@ const lotService = {
       const res = await fetch(`${baseUrl}/lotes/${id}`, {
         headers: getAuthHeader(token)
       });
-      const data = await res.json();
+      const ct = res.headers.get('content-type') || '';
+      const data = ct.includes('application/json') ? await res.json() : await res.text();
       if (!res.ok) {
-        throw new Error(data?.message || 'Error al obtener el lote');
+        const msg = typeof data === 'string' ? data.slice(0, 140) : (data?.message || 'Error al obtener el lote');
+        throw new Error(msg);
       }
       return mapLot(data);
     } catch (error) {
@@ -78,9 +83,11 @@ const lotService = {
         },
         body: JSON.stringify(filteredData)
       });
-      const data = await res.json();
+      const ct = res.headers.get('content-type') || '';
+      const data = ct.includes('application/json') ? await res.json() : await res.text();
       if (!res.ok) {
-        throw new Error(data?.message || 'Error al crear el lote');
+        const msg = typeof data === 'string' ? data.slice(0, 140) : (data?.message || 'Error al crear el lote');
+        throw new Error(msg);
       }
       return mapLot(data);
     } catch (error) {
@@ -122,9 +129,11 @@ const lotService = {
         },
         body: JSON.stringify(updateData)
       });
-      const data = await res.json();
+      const ct = res.headers.get('content-type') || '';
+      const data = ct.includes('application/json') ? await res.json() : await res.text();
       if (!res.ok) {
-        throw new Error(data?.message || 'Error al actualizar el lote');
+        const msg = typeof data === 'string' ? data.slice(0, 140) : (data?.message || 'Error al actualizar el lote');
+        throw new Error(msg);
       }
       return mapLot(data);
     } catch (error) {
@@ -147,11 +156,13 @@ const lotService = {
         },
         body: JSON.stringify({ coordenadas: coords })
       });
+      const ct = res.headers.get('content-type') || '';
       if (!res.ok) {
-        const data = await res.json().catch(() => ({}));
-        throw new Error(data?.message || 'Error al actualizar coordenadas');
+        const errData = ct.includes('application/json') ? await res.json().catch(() => ({})) : await res.text();
+        const msg = typeof errData === 'string' ? errData.slice(0, 140) : (errData?.message || 'Error al actualizar coordenadas');
+        throw new Error(msg);
       }
-      const data = await res.json();
+      const data = ct.includes('application/json') ? await res.json() : await res.text();
       return data;
     } catch (error) {
       console.error('Error al actualizar coordenadas del lote:', error);
@@ -166,8 +177,10 @@ const lotService = {
         headers: getAuthHeader(token)
       });
       if (!res.ok) {
-        const data = await res.json();
-        throw new Error(data?.message || 'Error al eliminar el lote');
+        const ct = res.headers.get('content-type') || '';
+        const data = ct.includes('application/json') ? await res.json() : await res.text();
+        const msg = typeof data === 'string' ? data.slice(0, 140) : (data?.message || 'Error al eliminar el lote');
+        throw new Error(msg);
       }
       return true;
     } catch (error) {
@@ -184,9 +197,11 @@ const lotService = {
       const res = await fetch(`${baseUrl}/lotes/map-data`, {
         headers: getAuthHeader(token)
       });
-      const data = await res.json();
+      const ct = res.headers.get('content-type') || '';
+      const data = ct.includes('application/json') ? await res.json() : await res.text();
       if (!res.ok) {
-        throw new Error(data?.message || 'Error al obtener los datos del mapa');
+        const msg = typeof data === 'string' ? data.slice(0, 140) : (data?.message || 'Error al obtener los datos del mapa');
+        throw new Error(msg);
       }
       return data;
     } catch (error) {

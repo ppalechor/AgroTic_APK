@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Modal, View, Text, StyleSheet, Pressable } from 'react-native';
 import Input from '../atoms/Input';
 import Button from '../atoms/Button';
@@ -12,87 +12,101 @@ const DOC_TYPES = [
   { value: 'PASAPORTE', label: 'Pasaporte' },
 ];
 
-export default function UserEditModal({ visible, onClose, user, onSubmit, loading }) {
+export default function UserCreateModal({ visible, onClose, onSubmit, loading }) {
   const { user: me } = useAuth();
   const [nombres, setNombres] = useState('');
   const [email, setEmail] = useState('');
   const [tipoDocumento, setTipoDocumento] = useState('C.C.');
   const [numeroDocumento, setNumeroDocumento] = useState('');
-  const [docOpen, setDocOpen] = useState(false);
+  const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
   const [roles, setRoles] = useState([]);
   const [roleOpen, setRoleOpen] = useState(false);
   const [roleId, setRoleId] = useState(null);
+  const [docOpen, setDocOpen] = useState(false);
   const [error, setError] = useState('');
 
   useEffect(() => {
-    setNombres(user?.nombres || '');
-    setEmail(user?.email || '');
-    setTipoDocumento(user?.tipo_documento || 'C.C.');
-    setNumeroDocumento(String(user?.numero_documento || ''));
-    const initialRoleId = (() => {
-      const obj = user?.id_rol;
-      if (obj && typeof obj === 'object') return obj.id_rol || obj.id || null;
-      if (typeof user?.id_rol === 'number') return user.id_rol;
-      return null;
-    })();
-    setRoleId(initialRoleId);
-    setError('');
-  }, [user]);
-
-  useEffect(() => {
+    if (!visible) return;
     let mounted = true;
     (async () => {
       try {
-        if (!visible) return;
         const list = await listRolesDisponibles();
         if (!mounted) return;
         setRoles(Array.isArray(list) ? list : []);
-        if (!roleId) {
-          const name = String(user?.nombre_rol || user?.rol || '').trim().toLowerCase();
-          const match = list.find(r => String(r?.nombre_rol || '').trim().toLowerCase() === name);
-          if (match) setRoleId(match.id_rol);
+        if (!roleId && Array.isArray(list) && list.length) {
+          // Default to first role to avoid empty state
+          setRoleId(list[0].id_rol);
         }
       } catch (e) {
-        // silently ignore
+        // ignore silently
       }
     })();
     return () => { mounted = false; };
   }, [visible]);
 
-  const handleSave = async () => {
+  useEffect(() => {
+    if (!visible) {
+      setNombres('');
+      setEmail('');
+      setTipoDocumento('C.C.');
+      setNumeroDocumento('');
+      setPassword('');
+      setConfirmPassword('');
+      setError('');
+      setRoleOpen(false);
+      setDocOpen(false);
+    }
+  }, [visible]);
+
+  const handleCreate = async () => {
     setError('');
+    if (!nombres.trim() || !email.trim() || !numeroDocumento.trim()) {
+      setError('Completa nombres, email y número de documento');
+      return;
+    }
+    if (password.length < 8) {
+      setError('La contraseña debe tener al menos 8 caracteres');
+      return;
+    }
+    if (password !== confirmPassword) {
+      setError('Las contraseñas no coinciden');
+      return;
+    }
     try {
-      const payload = { nombres, email, tipo_documento: tipoDocumento };
-      const isAdmin = String(me?.id_rol?.nombre_rol || me?.nombre_rol || me?.rol || '').toLowerCase() === 'administrador';
-      if (isAdmin && roleId) {
-        payload.id_rol = roleId;
-      }
+      const payload = {
+        nombres,
+        email,
+        password,
+        tipo_documento: tipoDocumento,
+        numero_documento: numeroDocumento,
+        id_rol: roleId || undefined,
+      };
       await onSubmit(payload);
       onClose();
     } catch (e) {
-      setError(e?.message || 'Error guardando');
+      setError(e?.message || 'Error creando usuario');
     }
   };
+
+  const isAdmin = String(me?.id_rol?.nombre_rol || me?.nombre_rol || me?.rol || '').toLowerCase() === 'administrador';
 
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
       <View style={styles.overlay}>
         <View style={styles.card}>
-          <Text style={styles.title}>Editar usuario</Text>
-          <Input label="Nombres" value={nombres} onChangeText={setNombres} placeholder="Nombres completos" />
+          <Text style={styles.title}>Nuevo Usuario</Text>
+          <Input label="Nombres completos" value={nombres} onChangeText={setNombres} placeholder="Nombres completos" />
           <Input label="Email" value={email} onChangeText={setEmail} placeholder="correo@ejemplo.com" keyboardType="email-address" />
           <Text style={styles.label}>Rol</Text>
           <Pressable
-            style={[styles.select, (String(me?.id_rol?.nombre_rol || me?.nombre_rol || me?.rol || '').toLowerCase() !== 'administrador') && { opacity: 0.8 }]}
-            onPress={() => {
-              const isAdminPress = String(me?.id_rol?.nombre_rol || me?.nombre_rol || me?.rol || '').toLowerCase() === 'administrador';
-              if (isAdminPress) setRoleOpen(!roleOpen);
-            }}
+            style={[styles.select, (!isAdmin) && { opacity: 0.8 }]}
+            onPress={() => { if (isAdmin) setRoleOpen(!roleOpen); }}
           >
             <Text style={styles.selectText}>
               {(() => {
                 const current = roles.find(r => r.id_rol === roleId);
-                return current?.nombre_rol || user?.nombre_rol || user?.rol || '—';
+                return current?.nombre_rol || 'Seleccionar rol';
               })()}
             </Text>
           </Pressable>
@@ -105,6 +119,7 @@ export default function UserEditModal({ visible, onClose, user, onSubmit, loadin
               ))}
             </View>
           ) : null}
+
           <Text style={styles.label}>Tipo de documento</Text>
           <Pressable style={styles.select} onPress={() => setDocOpen(!docOpen)}>
             <Text style={styles.selectText}>{DOC_TYPES.find(d => d.value === tipoDocumento)?.label}</Text>
@@ -118,12 +133,16 @@ export default function UserEditModal({ visible, onClose, user, onSubmit, loadin
               ))}
             </View>
           ) : null}
-          <Input label="Número de documento" value={numeroDocumento} onChangeText={setNumeroDocumento} placeholder="Número" keyboardType="number-pad" />
+
+          <Input label="Número de Documento" value={numeroDocumento} onChangeText={setNumeroDocumento} placeholder="Número" keyboardType="number-pad" />
+          <Input label="Contraseña" value={password} onChangeText={setPassword} placeholder="Mínimo 8 caracteres" secureTextEntry />
+          <Input label="Confirmar contraseña" value={confirmPassword} onChangeText={setConfirmPassword} placeholder="Repite la contraseña" secureTextEntry />
+
           {error ? <Text style={styles.error}>{error}</Text> : null}
           <View style={styles.actions}>
             <Button title="Cancelar" variant="secondary" onPress={onClose} />
             <View style={{ width: 12 }} />
-            <Button title={loading ? '' : 'Guardar'} onPress={handleSave} />
+            <Button title={loading ? '' : 'Crear Usuario'} onPress={handleCreate} />
           </View>
         </View>
       </View>
@@ -134,7 +153,7 @@ export default function UserEditModal({ visible, onClose, user, onSubmit, loadin
 const styles = StyleSheet.create({
   overlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.2)', alignItems: 'center', justifyContent: 'center' },
   card: { width: '90%', maxWidth: 420, backgroundColor: '#fff', borderRadius: 12, padding: 16 },
-  title: { fontSize: 16, fontWeight: '700', marginBottom: 8 },
+  title: { fontSize: 16, fontWeight: '700', marginBottom: 8, color: '#16A34A' },
   label: { fontSize: 12, color: '#333', marginTop: 8 },
   select: { borderWidth: 1, borderColor: '#D0D5DD', borderRadius: 8, paddingHorizontal: 12, paddingVertical: 10, marginTop: 4 },
   selectText: { fontSize: 14, color: '#0f172a' },
@@ -144,3 +163,4 @@ const styles = StyleSheet.create({
   actions: { flexDirection: 'row', marginTop: 12, justifyContent: 'flex-end' },
   error: { marginTop: 8, fontSize: 12, color: '#DC2626' },
 });
+

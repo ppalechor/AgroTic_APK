@@ -20,9 +20,7 @@ export default function DashboardPage({ navigation }) {
             <Text style={styles.listItem}><Text style={styles.bullet}>•</Text> Conectar con la comunidad agrícola</Text>
             <Text style={styles.listItem}><Text style={styles.bullet}>•</Text> Optimizar procesos y reducir costos</Text>
           </View>
-          <View style={styles.actions}>
-            <Button title="Cerrar sesión" variant="secondary" onPress={() => { logout(); navigation.replace('Login'); }} />
-          </View>
+          
         </View>
         <View style={styles.cardRight}>
           <ImageCarousel

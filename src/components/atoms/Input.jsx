@@ -1,7 +1,7 @@
 import React from 'react';
 import { View, Text, TextInput, StyleSheet } from 'react-native';
 
-export default function Input({ label, value, onChangeText, placeholder, keyboardType, secureTextEntry }) {
+export default function Input({ label, value, onChangeText, placeholder, keyboardType, secureTextEntry, editable = true }) {
   return (
     <View style={styles.wrapper}>
       {label ? <Text style={styles.label}>{label}</Text> : null}
@@ -11,6 +11,7 @@ export default function Input({ label, value, onChangeText, placeholder, keyboar
         placeholder={placeholder}
         keyboardType={keyboardType}
         secureTextEntry={secureTextEntry}
+        editable={editable}
         style={styles.input}
       />
     </View>

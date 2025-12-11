@@ -7,15 +7,11 @@ const KNOWN_RESOURCES = [
   'actividades','alertas','almacenes','categorias','cultivos','epa','finanzas','ingresos','insumos','inventario','lotes','movimientos','permisos','realiza','rol','salidas','sensores','sublotes','tiene','tiporol','tratamientos','usuarios','utiliza'
 ];
 
-const normalizeAction = (a) => {
-  const s = (a || '').toString().trim().toLowerCase();
-  if (!s) return '';
-  const map = { read: 'ver', list: 'ver', view: 'ver', create: 'crear', add: 'crear', new: 'crear', update: 'editar', edit: 'editar', delete: 'eliminar', remove: 'eliminar', export: 'exportar' };
-  return map[s] || s;
-};
+// Usa la misma normalización que el servicio para mantener consistencia
+const normalizeAction = (a) => permissionService.normalizeAction(a);
 
 export default function PermissionsModal({ visible, onClose, user }) {
-  const { token, user: authUser, refreshPermissions } = useAuth();
+  const { token, user: authUser, refreshPermissions, permissionKeys } = useAuth();
   const [allPerms, setAllPerms] = useState([]);
   const [userKeys, setUserKeys] = useState([]);
   const [recurso, setRecurso] = useState('');
@@ -34,6 +30,19 @@ export default function PermissionsModal({ visible, onClose, user }) {
   const [highlightKey, setHighlightKey] = useState('');
   const [highlightUntil, setHighlightUntil] = useState(0);
 
+  // ID del usuario objetivo con fallback según posibles nombres de campo
+  const targetUserId = useMemo(() => (
+    user?.id ?? user?.id_usuarios ?? user?.id_usuario ?? null
+  ), [user]);
+
+  const permSet = useMemo(() => new Set((permissionKeys || []).map(k => String(k).toLowerCase())), [permissionKeys]);
+  const canCreate = useMemo(() => {
+    const r = String(authUser?.nombre_rol || authUser?.rol || authUser?.id_rol?.nombre_rol || '').toLowerCase();
+    return r.includes('admin');
+  }, [authUser]);
+  const canAssign = true;
+  const canRevoke = true;
+
   useEffect(() => {
     if (!visible) return;
     (async () => {
@@ -44,8 +53,8 @@ export default function PermissionsModal({ visible, onClose, user }) {
         console.warn('Failed to load perms', e);
       }
       try {
-        if (user?.id) {
-          const uk = await permissionService.getUserKeys(user.id, token);
+        if (targetUserId) {
+          const uk = await permissionService.getUserKeys(targetUserId, token);
           setUserKeys(uk || []);
         } else {
           setUserKeys([]);
@@ -55,15 +64,21 @@ export default function PermissionsModal({ visible, onClose, user }) {
         setUserKeys([]);
       }
     })();
-  }, [visible, user]);
+  }, [visible, targetUserId]);
 
-  const normalizedPerms = useMemo(() => allPerms.map(p => ({ ...p, accion: normalizeAction(p.accion), clave: `${p.recurso}:${normalizeAction(p.accion)}` })), [allPerms]);
+  const normalizedPerms = useMemo(
+    () => allPerms.map(p => {
+      const r = permissionService.normalizeResource(p.recurso);
+      const a = normalizeAction(p.accion);
+      return { ...p, recurso: r, accion: a, clave: `${r}:${a}` };
+    }),
+    [allPerms]
+  );
 
-  const assignedSet = useMemo(() => new Set((userKeys || []).map(k => {
-    const parts = (k || '').split(':');
-    if (parts.length === 2) return `${parts[0]}:${normalizeAction(parts[1])}`;
-    return k;
-  })), [userKeys]);
+  const assignedSet = useMemo(
+    () => new Set((userKeys || []).map(k => (k || '').toString().trim().toLowerCase())),
+    [userKeys]
+  );
 
   const resources = useMemo(() => {
     const fromBD = new Set(normalizedPerms.map(p => p.recurso));
@@ -95,14 +110,20 @@ export default function PermissionsModal({ visible, onClose, user }) {
     if (!q) return resourceOptions;
     return resourceOptions.filter(it => it.label.toLowerCase().includes(q));
   }, [resourceSearch, resourceOptions]);
-  const actionOptions = useMemo(() => [{ value: '', label: 'Todas' }, ...availableActionsForFilter.map(a => ({ value: a, label: a }))], [availableActionsForFilter]);
+  // Opciones para el picker de Acción dependen del recurso seleccionado
+  const actionOptionsForPicker = useMemo(() => {
+    const setAll = new Set();
+    Object.values(actionsByResource).forEach(arr => arr.forEach(a => setAll.add(a)));
+    const base = recurso && actionsByResource[recurso] ? actionsByResource[recurso] : Array.from(setAll);
+    return base.map(a => ({ value: a, label: a }));
+  }, [recurso, actionsByResource]);
   const filteredActionOptions = useMemo(() => {
     const q = (actionSearch || '').toString().trim().toLowerCase();
-    if (!q) return actionOptions;
-    return actionOptions.filter(it => it.label.toLowerCase().includes(q));
-  }, [actionSearch, actionOptions]);
+    if (!q) return actionOptionsForPicker;
+    return actionOptionsForPicker.filter(it => it.label.toLowerCase().includes(q));
+  }, [actionSearch, actionOptionsForPicker]);
 
-  const selectedKey = recurso && accion ? `${recurso}:${accion}` : '';
+  const selectedKey = recurso && accion ? `${permissionService.normalizeResource(recurso)}:${normalizeAction(accion)}` : '';
   const existingPerm = useMemo(() => normalizedPerms.find(p => p.clave === selectedKey), [normalizedPerms, selectedKey]);
 
   const filteredPerms = useMemo(() => {
@@ -154,11 +175,11 @@ export default function PermissionsModal({ visible, onClose, user }) {
     if (!recurso || !accion) return Alert.alert('Atención', 'Seleccione recurso y acción');
     if (existingPerm) return Alert.alert('Info', 'Permiso ya existe');
     try {
-      await permissionService.create({ recurso, accion, nombre_permiso: `${recurso}:${accion}`, descripcion: '' }, token);
+      await permissionService.create({ recurso, accion, nombre_permiso: `${permissionService.normalizeResource(recurso)}:${normalizeAction(accion)}`, descripcion: '' }, token);
       Alert.alert('Éxito', 'Permiso creado');
       const ap = await permissionService.list(token);
       setAllPerms(ap || []);
-      setRecurso(''); setAccion('');
+      // Mantener selección para permitir asignar de inmediato
     } catch (e) {
       Alert.alert('Error', e?.message || 'No se pudo crear permiso');
     }
@@ -166,27 +187,37 @@ export default function PermissionsModal({ visible, onClose, user }) {
 
   const handleAssign = async () => {
     if (!existingPerm) return;
-    setLoadingId(existingPerm.id_permiso);
+    const idPerm = existingPerm.id_permiso ?? existingPerm.id;
+    if (!targetUserId) {
+      Alert.alert('Error', 'ID de usuario no disponible');
+      return;
+    }
+    setLoadingId(idPerm);
     try {
-      await permissionService.assign({ id_usuario: user.id, id_permiso: existingPerm.id_permiso }, token);
+      await permissionService.assign({ id_usuario: targetUserId, id_permiso: idPerm }, token);
       Alert.alert('Éxito', 'Permiso asignado');
-      const uk = await permissionService.getUserKeys(user.id, token);
+      const uk = await permissionService.getUserKeys(targetUserId, token);
       setUserKeys(uk || []);
-      if (authUser?.id === user?.id) refreshPermissions();
+      if ((authUser?.id ?? authUser?.id_usuarios ?? authUser?.id_usuario) === targetUserId) refreshPermissions();
     } catch (e) {
       Alert.alert('Error', e?.message || 'No se pudo asignar');
     } finally { setLoadingId(null); }
   };
 
   const handleAssignItem = async (perm) => {
-    if (!perm?.id_permiso) return;
-    setLoadingId(perm.id_permiso);
+    const idPerm = perm?.id_permiso ?? perm?.id;
+    if (!idPerm) return;
+    if (!targetUserId) {
+      Alert.alert('Error', 'ID de usuario no disponible');
+      return;
+    }
+    setLoadingId(idPerm);
     try {
-      await permissionService.assign({ id_usuario: user.id, id_permiso: perm.id_permiso }, token);
+      await permissionService.assign({ id_usuario: targetUserId, id_permiso: idPerm }, token);
       Alert.alert('Éxito', 'Permiso asignado');
-      const uk = await permissionService.getUserKeys(user.id, token);
+      const uk = await permissionService.getUserKeys(targetUserId, token);
       setUserKeys(uk || []);
-      if (authUser?.id === user?.id) refreshPermissions(authUser.id);
+      if ((authUser?.id ?? authUser?.id_usuarios ?? authUser?.id_usuario) === targetUserId) refreshPermissions();
     } catch (e) {
       Alert.alert('Error', e?.message || 'No se pudo asignar');
     } finally { setLoadingId(null); }
@@ -194,27 +225,37 @@ export default function PermissionsModal({ visible, onClose, user }) {
 
   const handleRevoke = async () => {
     if (!existingPerm) return;
-    setLoadingId(existingPerm.id_permiso);
+    const idPerm = existingPerm.id_permiso ?? existingPerm.id;
+    if (!targetUserId) {
+      Alert.alert('Error', 'ID de usuario no disponible');
+      return;
+    }
+    setLoadingId(idPerm);
     try {
-      await permissionService.revoke({ id_usuario: user.id, id_permiso: existingPerm.id_permiso }, token);
+      await permissionService.revoke({ id_usuario: targetUserId, id_permiso: idPerm }, token);
       Alert.alert('Éxito', 'Permiso revocado');
-      const uk = await permissionService.getUserKeys(user.id, token);
+      const uk = await permissionService.getUserKeys(targetUserId, token);
       setUserKeys(uk || []);
-      if (authUser?.id === user?.id) refreshPermissions();
+      if ((authUser?.id ?? authUser?.id_usuarios ?? authUser?.id_usuario) === targetUserId) refreshPermissions();
     } catch (e) {
       Alert.alert('Error', e?.message || 'No se pudo revocar');
     } finally { setLoadingId(null); }
   };
 
   const handleRevokeItem = async (perm) => {
-    if (!perm?.id_permiso) return;
-    setLoadingId(perm.id_permiso);
+    const idPerm = perm?.id_permiso ?? perm?.id;
+    if (!idPerm) return;
+    if (!targetUserId) {
+      Alert.alert('Error', 'ID de usuario no disponible');
+      return;
+    }
+    setLoadingId(idPerm);
     try {
-      await permissionService.revoke({ id_usuario: user.id, id_permiso: perm.id_permiso });
+      await permissionService.revoke({ id_usuario: targetUserId, id_permiso: idPerm }, token);
       Alert.alert('Éxito', 'Permiso revocado');
-      const uk = await permissionService.getUserKeys(user.id);
+      const uk = await permissionService.getUserKeys(targetUserId, token);
       setUserKeys(uk || []);
-      if (authUser?.id === user?.id) refreshPermissions(authUser.id);
+      if ((authUser?.id ?? authUser?.id_usuarios ?? authUser?.id_usuario) === targetUserId) refreshPermissions();
     } catch (e) {
       Alert.alert('Error', e?.message || 'No se pudo revocar');
     } finally { setLoadingId(null); }
@@ -230,20 +271,22 @@ export default function PermissionsModal({ visible, onClose, user }) {
         <Text style={styles.permCell}>{item.accion}</Text>
         <Text style={[styles.permCell, { flex: 2 }]}>{displayName}</Text>
         <Text style={styles.permCell}>{item.activo ? 'Activo' : 'Inactivo'}</Text>
-        <Pressable
-          style={[styles.tag, assigned ? styles.tagAssigned : styles.tagUnassigned]}
-          onPress={() => { assigned ? handleRevokeItem(item) : handleAssignItem(item); }}
-          disabled={loadingId === item.id_permiso}
-        >
-          <Text style={styles.tagText}>{assigned ? 'Asignado' : 'No asignado'}</Text>
-        </Pressable>
+        {/* Chip de asignación removido para igualar el modal web */}
         {assigned ? (
-          <Pressable style={[styles.smallBtn, styles.outlineDanger]} onPress={handleRevoke} disabled={loadingId === item.id_permiso}>
-            <Text style={styles.smallBtnText}>{loadingId === item.id_permiso ? 'Revocando...' : 'Revocar'}</Text>
+          <Pressable
+            style={[styles.smallBtn, styles.outlineDanger]}
+            onPress={() => handleRevokeItem(item)}
+            disabled={loadingId === (item.id_permiso ?? item.id)}
+          >
+            <Text style={styles.smallBtnTextDanger}>{loadingId === (item.id_permiso ?? item.id) ? 'Revocando...' : 'Revocar'}</Text>
           </Pressable>
         ) : (
-          <Pressable style={[styles.smallBtn, styles.primary]} onPress={handleAssign} disabled={loadingId === item.id_permiso}>
-            <Text style={styles.smallBtnText}>{loadingId === item.id_permiso ? 'Asignando...' : 'Asignar'}</Text>
+          <Pressable
+            style={[styles.smallBtn, styles.primary]}
+            onPress={() => handleAssignItem(item)}
+            disabled={loadingId === (item.id_permiso ?? item.id)}
+          >
+            <Text style={styles.smallBtnText}>{loadingId === (item.id_permiso ?? item.id) ? 'Asignando...' : 'Asignar'}</Text>
           </Pressable>
         )}
       </View>
@@ -260,7 +303,7 @@ export default function PermissionsModal({ visible, onClose, user }) {
 
           <View style={styles.chipsRow}>
             <View style={styles.chipGreen}><Text style={styles.chipGreenText}>{`Usuario: ${user?.nombres || user?.email || ''}`}</Text></View>
-            <View style={styles.chip}><Text style={styles.chipText}>{`ID: ${user?.id || ''}`}</Text></View>
+            <View style={styles.chip}><Text style={styles.chipText}>{`ID: ${targetUserId ?? ''}`}</Text></View>
           </View>
 
           <View style={styles.controlsRow}>
@@ -268,34 +311,35 @@ export default function PermissionsModal({ visible, onClose, user }) {
           </View>
 
           <View style={styles.rowInputs}>
-            <Pressable style={styles.input} onPress={() => setOpenResourcePicker(true)}>
-              <Text style={{ color: recurso ? '#0f172a' : '#94a3b8' }}>{recurso || 'Recurso'}</Text>
+            <TextInput
+              style={styles.input}
+              placeholder="Recurso"
+              value={recurso}
+              onChangeText={(t) => { setRecurso((t || '').trim()); setAccion(''); }}
+            />
+            <Pressable style={[styles.btn, styles.btnOutline, { marginLeft: 8 }]} onPress={() => { setResourceSearch(''); setOpenResourcePicker(true); }}>
+              <Text style={styles.btnTextOutline}>Seleccionar</Text>
             </Pressable>
-            <Pressable style={[styles.input, { marginLeft: 8 }]} onPress={() => setOpenActionPicker(true)}>
-              <Text style={{ color: accion ? '#0f172a' : '#94a3b8' }}>{accion || 'Acción'}</Text>
+            <TextInput
+              style={[styles.input, { marginLeft: 8 }]
+}
+              placeholder="Acción"
+              value={accion}
+              onChangeText={(t) => setAccion((t || '').trim())}
+              editable={Boolean(recurso)}
+            />
+            <Pressable style={[styles.btn, styles.btnOutline, { marginLeft: 8 }]} onPress={() => { if (!recurso) return; setActionSearch(''); setOpenActionPicker(true); }} disabled={!recurso}>
+              <Text style={styles.btnTextOutline}>{recurso ? 'Seleccionar' : 'Seleccione recurso'}</Text>
             </Pressable>
           </View>
 
           <View style={styles.rowActions}>
-            {!existingPerm && <Pressable style={[styles.btn, styles.btnOutline]} onPress={handleCreate}><Text style={styles.btnTextOutline}>CREAR PERMISO</Text></Pressable>}
+            {canCreate && !existingPerm && <Pressable style={[styles.btn, styles.btnOutline]} onPress={handleCreate}><Text style={styles.btnTextOutline}>Crear permiso</Text></Pressable>}
             {existingPerm && !assignedSet.has(selectedKey) && <Pressable style={[styles.btn, styles.primary]} onPress={handleAssign}><Text style={styles.btnText}>Asignar</Text></Pressable>}
             {existingPerm && assignedSet.has(selectedKey) && <Pressable style={[styles.btn, styles.outlineDanger]} onPress={handleRevoke}><Text style={styles.btnText}>Revocar</Text></Pressable>}
           </View>
 
-          <View style={styles.filterRow}>
-            <Pressable style={styles.filterBtn} onPress={() => setEstadoFilter(estadoFilter === 'all' ? 'activo' : estadoFilter === 'activo' ? 'inactivo' : 'all')}>
-              <Text style={styles.filterBtnText}>{estadoFilter === 'all' ? 'Estado: Todos' : estadoFilter === 'activo' ? 'Estado: Activo' : 'Estado: Inactivo'}</Text>
-            </Pressable>
-            <Pressable style={styles.filterBtn} onPress={() => setAssignedFilter(assignedFilter === 'all' ? 'assigned' : assignedFilter === 'assigned' ? 'not_assigned' : 'all')}>
-              <Text style={styles.filterBtnText}>{assignedFilter === 'all' ? 'Asignación: Todos' : assignedFilter === 'assigned' ? 'Asignación: Asignados' : 'Asignación: No asignados'}</Text>
-            </Pressable>
-            <Pressable style={styles.filterBtn} onPress={() => setOpenResourcePicker(true)}>
-              <Text style={styles.filterBtnText}>{recursoFilter ? `Recurso: ${recursoFilter}` : 'Recurso: Todos'}</Text>
-            </Pressable>
-            <Pressable style={styles.filterBtn} onPress={() => setOpenActionPicker(true)}>
-              <Text style={styles.filterBtnText}>{accionFilter ? `Acción: ${accionFilter}` : 'Acción: Todas'}</Text>
-            </Pressable>
-          </View>
+          {/* Filtros avanzados removidos para igualar el modal web */}
 
           <View style={{ height: 1, backgroundColor: '#E4E7EC', marginVertical: 8 }} />
           <View style={styles.tableHeader}>
@@ -320,67 +364,65 @@ export default function PermissionsModal({ visible, onClose, user }) {
           </View>
         </View>
       </View>
-      <Modal visible={openResourcePicker} transparent animationType="fade" onRequestClose={() => setOpenResourcePicker(false)}>
+      {/* Picker de Recurso */}
+      {openResourcePicker && (
         <View style={styles.pickerOverlay}>
           <View style={styles.pickerCard}>
-            <Text style={styles.pickerTitle}>Filtrar por Recurso</Text>
-            <TextInput placeholder="Buscar recurso..." style={styles.searchInput} value={resourceSearch} onChangeText={setResourceSearch} />
+            <Text style={styles.pickerTitle}>Seleccionar recurso</Text>
+            <TextInput
+              placeholder="Buscar recurso..."
+              style={styles.searchInput}
+              value={resourceSearch}
+              onChangeText={setResourceSearch}
+            />
             <FlatList
-              data={filteredResourceOptions}
-              keyExtractor={(it) => it.value === '' ? 'all' : it.value}
+              data={filteredResourceOptions.filter(it => it.value)}
+              keyExtractor={(it) => `res-${it.value}`}
               renderItem={({ item }) => (
-                <Pressable
-                  style={styles.pickerItem}
-                  onPress={() => {
-                    setRecursoFilter(item.value);
-                    if (!item.value) {
-                      setRecurso('');
-                      setAccionFilter('');
-                      setAccion('');
-                    } else {
-                      setRecurso(item.value);
-                      setAccionFilter('');
-                      setAccion('');
-                    }
-                    setResourceSearch('');
-                    setOpenResourcePicker(false);
-                  }}
-                >
+                <Pressable style={styles.pickerItem} onPress={() => { setRecurso(item.value); setAccion(''); setOpenResourcePicker(false); }}>
                   <Text style={styles.pickerItemText}>{item.label}</Text>
                 </Pressable>
               )}
+              style={{ marginTop: 4 }}
             />
-            <Pressable style={[styles.btn, styles.close]} onPress={() => setOpenResourcePicker(false)}><Text style={styles.btnText}>Cerrar</Text></Pressable>
+            <View style={styles.footerActions}>
+              <Pressable style={[styles.btn, styles.primaryFull]} onPress={() => setOpenResourcePicker(false)}>
+                <Text style={styles.btnText}>Cerrar</Text>
+              </Pressable>
+            </View>
           </View>
         </View>
-      </Modal>
-      <Modal visible={openActionPicker} transparent animationType="fade" onRequestClose={() => setOpenActionPicker(false)}>
+      )}
+
+      {/* Picker de Acción */}
+      {openActionPicker && (
         <View style={styles.pickerOverlay}>
           <View style={styles.pickerCard}>
-            <Text style={styles.pickerTitle}>Filtrar por Acción</Text>
-            <TextInput placeholder="Buscar acción..." style={styles.searchInput} value={actionSearch} onChangeText={setActionSearch} />
+            <Text style={styles.pickerTitle}>Seleccionar acción</Text>
+            <TextInput
+              placeholder="Buscar acción..."
+              style={styles.searchInput}
+              value={actionSearch}
+              onChangeText={setActionSearch}
+            />
             <FlatList
               data={filteredActionOptions}
-              keyExtractor={(it) => it.value === '' ? 'all' : it.value}
+              keyExtractor={(it) => `acc-${it.value}`}
               renderItem={({ item }) => (
-                <Pressable
-                  style={styles.pickerItem}
-                  onPress={() => {
-                    setAccionFilter(item.value);
-                    setAccion(item.value);
-                    if (!recurso && recursoFilter) setRecurso(recursoFilter);
-                    setActionSearch('');
-                    setOpenActionPicker(false);
-                  }}
-                >
+                <Pressable style={styles.pickerItem} onPress={() => { setAccion(item.value); setOpenActionPicker(false); }}>
                   <Text style={styles.pickerItemText}>{item.label}</Text>
                 </Pressable>
               )}
+              style={{ marginTop: 4 }}
             />
-            <Pressable style={[styles.btn, styles.close]} onPress={() => setOpenActionPicker(false)}><Text style={styles.btnText}>Cerrar</Text></Pressable>
+            <View style={styles.footerActions}>
+              <Pressable style={[styles.btn, styles.primaryFull]} onPress={() => setOpenActionPicker(false)}>
+                <Text style={styles.btnText}>Cerrar</Text>
+              </Pressable>
+            </View>
           </View>
         </View>
-      </Modal>
+      )}
     </Modal>
   );
 }
@@ -405,10 +447,11 @@ const styles = StyleSheet.create({
   btn: { paddingHorizontal: 10, paddingVertical: 8, borderRadius: 8, marginRight: 8 },
   primary: { backgroundColor: '#16A34A' },
   btnOutline: { borderWidth: 1, borderColor: '#16A34A', backgroundColor: '#fff' },
-  outlineDanger: { borderWidth: 1, borderColor: '#ef4444' },
+  outlineDanger: { borderWidth: 1, borderColor: '#ef4444', backgroundColor: '#fff' },
   close: { backgroundColor: '#64748b' },
   btnText: { color: '#fff' },
   btnTextOutline: { color: '#16A34A', fontWeight: '700' },
+  smallBtnTextDanger: { color: '#ef4444', fontWeight: '700' },
   filterRow: { flexDirection: 'row', justifyContent: 'space-between', gap: 8 },
   filterBtn: { paddingHorizontal: 8, paddingVertical: 6, borderRadius: 8, borderWidth: 1, borderColor: '#E4E7EC', backgroundColor: '#fff' },
   filterBtnText: { color: '#334155' },

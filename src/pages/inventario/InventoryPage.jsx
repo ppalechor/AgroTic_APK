@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { View, Text, TextInput, Pressable, StyleSheet, ScrollView, FlatList, Modal } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 import { useAuth } from '../../contexts/AuthContext';
-import { listInventario, listInsumos, createInsumo, updateInsumo, deleteInsumo, createMovimiento, listMovimientos, updateMovimiento, deleteMovimiento, listCategorias, listAlmacenes } from '../../services/api';
+import { listInventario, listInsumos, createInsumo, updateInsumo, deleteInventario, createMovimiento, listMovimientos, updateMovimiento, deleteMovimiento, listCategorias, listAlmacenes, updateInventario, createInventario, listCultivos } from '../../services/api';
 import InventoryFormModal from '../../components/molecules/InventoryFormModal';
 import InventoryMovementModal from '../../components/molecules/InventoryMovementModal';
 import InventoryItemModal from '../../components/molecules/InventoryItemModal';
@@ -44,12 +44,13 @@ export default function InventoryPage() {
   const [query, setQuery] = useState('');
   const [items, setItems] = useState([]);
   const [insumos, setInsumos] = useState([]);
+  const [cultivos, setCultivos] = useState([]);
   const [error, setError] = useState('');
   const [openForm, setOpenForm] = useState(false);
   const [openMove, setOpenMove] = useState(false);
   const [movePreset, setMovePreset] = useState(null);
+  const [editItem, setEditItem] = useState(false);
   const [current, setCurrent] = useState(null);
-  const [moveType, setMoveType] = useState('Entrada');
   const [entradas, setEntradas] = useState([]);
   const [salidas, setSalidas] = useState([]);
   const [pageInv, setPageInv] = useState(1);
@@ -57,6 +58,7 @@ export default function InventoryPage() {
   const [pageSal, setPageSal] = useState(1);
   const pageSize = 8;
   const [confirm, setConfirm] = useState({ open: false, text: '', action: null });
+  const [notice, setNotice] = useState({ type: '', text: '' });
 
   const fetchAll = async () => {
     setError('');
@@ -64,18 +66,22 @@ export default function InventoryPage() {
       const inv = await listInventario(token);
       const ins = await listInsumos(token);
       const movs = await listMovimientos(token);
+      const { items: culItems } = await listCultivos(token, { page: 1, limit: 100 });
       const cats = await listCategorias(token);
       const alms = await listAlmacenes(token);
       const catMap = Object.fromEntries((cats || []).map((c) => [String(c.id), c.nombre]));
       const almMap = Object.fromEntries((alms || []).map((a) => [String(a.id), a.nombre]));
       const insumoMap = Object.fromEntries((ins || []).map((i) => [String(i.id_insumo || i.id), { cat: i.id_categoria?.nombre || '', alm: i.id_almacen?.nombre_almacen || i.id_almacen?.nombre || '' }]));
 
-      setItems(inv.map((i) => ({
+      const enrichedItems = inv.map((i) => ({
         ...i,
         categoria: i.categoria || insumoMap[String(i.id_insumo || '')]?.cat || catMap[String(i.id_categoria || '')] || '',
         almacen: i.almacen || insumoMap[String(i.id_insumo || '')]?.alm || almMap[String(i.id_almacen || '')] || '',
-      })));
+      }));
+      setItems(enrichedItems);
       setInsumos(ins);
+      setCultivos(culItems || []);
+      // Se elimina la sección de Stock Bajo y su carga
       const movsEnriq = movs.map((m) => ({
         ...m,
         categoria: m.categoria || insumoMap[String(m.id_insumo || '')]?.cat || catMap[String(m.id_categoria || '')] || '',
@@ -90,6 +96,7 @@ export default function InventoryPage() {
 
   useEffect(() => { fetchAll(); }, [token]);
   useEffect(() => { const id = setTimeout(() => fetchAll(), 400); return () => clearTimeout(id); }, [query]);
+  useEffect(() => { if (notice.text) { const id = setTimeout(() => setNotice({ type: '', text: '' }), 2500); return () => clearTimeout(id); } }, [notice]);
 
   const filtered = items.filter((it) => {
     const t = `${it.nombre_insumo || ''} ${it.codigo || ''}`.toLowerCase();
@@ -108,6 +115,9 @@ export default function InventoryPage() {
         <Text style={styles.pageTitle}>Gestión de Inventario</Text>
         <Pressable style={styles.newBtn} onPress={() => { setCurrent(null); setOpenForm(true); }}><Feather name="plus" size={16} color="#fff" /><Text style={styles.newBtnText}> Nuevo Insumo</Text></Pressable>
       </View>
+      {notice.text ? (<View style={[styles.notice, notice.type === 'error' ? styles.noticeError : styles.noticeSuccess]}><Text style={styles.noticeText}>{notice.text}</Text></View>) : null}
+      <View style={{ height: 12 }} />
+      
       <View style={styles.searchBox}>
         <Feather name="search" size={16} color="#64748b" />
         <TextInput style={styles.searchInput} placeholder="Buscar por nombre o unidad..." value={query} onChangeText={setQuery} />
@@ -132,11 +142,11 @@ export default function InventoryPage() {
               renderItem={({ item }) => (
                 <InventoryRow
                   item={item}
-                  onInfo={() => { setCurrent(item); }}
-                  onEdit={() => { setCurrent(item); setOpenForm(true); }}
-                  onDelete={() => setConfirm({ open: true, text: `¿Eliminar insumo ${item.nombre_insumo}?`, action: async () => { await deleteInsumo(item.id_insumo, token); fetchAll(); } })}
-                  onEntrada={() => { setMoveType('Entrada'); setMovePreset({ id_insumo: item.id_insumo }); setOpenMove(true); }}
-                  onSalida={() => { setMoveType('Salida'); setMovePreset({ id_insumo: item.id_insumo }); setOpenMove(true); }}
+                  onInfo={() => { setEditItem(false); setCurrent(item); }}
+                  onEdit={() => { setEditItem(true); setCurrent(item); }}
+                  onDelete={() => setConfirm({ open: true, text: `¿Eliminar ítem de inventario ${item.nombre_insumo}?`, action: async () => { await deleteInventario(item.id_inventario, token); fetchAll(); setNotice({ type: 'success', text: 'Ítem de inventario eliminado' }); } })}
+                  onEntrada={() => { setMovePreset({ id_insumo: item.id_insumo, tipo_movimiento: 'Entrada' }); setOpenMove(true); }}
+                  onSalida={() => { setMovePreset({ id_insumo: item.id_insumo, tipo_movimiento: 'Salida' }); setOpenMove(true); }}
                 />
               )}
               contentContainerStyle={styles.scrollContent}
@@ -150,9 +160,121 @@ export default function InventoryPage() {
           </View>
         </ScrollView>
       </View>
-      <InventoryItemModal visible={!!current && !openForm && !openMove} item={current} onClose={() => setCurrent(null)} />
-      <InventoryFormModal visible={openForm} insumo={current} onClose={() => setOpenForm(false)} onSubmit={async (payload) => { if (current) await updateInsumo(current.id_insumo || current.id, payload, token); else await createInsumo(payload, token); fetchAll(); }} />
-      <InventoryMovementModal visible={openMove} preset={movePreset} insumos={insumos} onClose={() => setOpenMove(false)} onSubmit={async (payload) => { await createMovimiento({ ...payload, tipo_movimiento: moveType }, token); fetchAll(); }} />
+      <InventoryItemModal
+        visible={!!current && !openForm && !openMove}
+        item={current}
+        editable={editItem}
+        onSave={async (vals) => {
+          try {
+            await updateInventario(current.id_inventario, { cantidad_stock: Number(vals.cantidad_stock || 0), unidad_medida: String(vals.unidad_medida || '').trim() }, token);
+            setNotice({ type: 'success', text: 'Inventario actualizado' });
+            fetchAll();
+          } catch (e) {
+            setNotice({ type: 'error', text: e?.message || 'Error actualizando inventario' });
+          }
+        }}
+        onClose={() => { setCurrent(null); setEditItem(false); }}
+      />
+      <InventoryFormModal
+        visible={openForm}
+        insumo={current}
+        onClose={() => setOpenForm(false)}
+        onSubmit={async (payload, extra) => {
+          if (current) {
+            await updateInsumo(current.id_insumo || current.id, payload, token);
+          } else {
+            const created = await createInsumo(payload, token);
+            const newInsumoId = created?.id_insumo || created?.id;
+            const cantidad = Number(extra?.cantidad || 0);
+            const unidad = String(extra?.unidad || '').trim();
+            if (newInsumoId && cantidad > 0 && unidad.length) {
+              try {
+                await createInventario({
+                  id_insumo: Number(newInsumoId),
+                  cantidad_stock: cantidad,
+                  unidad_medida: unidad,
+                  fecha: payload.fecha_entrada,
+                }, token);
+              } catch {}
+            }
+          }
+          fetchAll();
+        }}
+      />
+      <InventoryMovementModal
+        visible={openMove}
+        preset={movePreset}
+        insumos={insumos}
+        cultivos={cultivos}
+        onClose={() => { setOpenMove(false); setMovePreset(null); }}
+        onSubmit={async (payload) => {
+          try {
+            const tipo = String(payload.tipo_movimiento || '').toLowerCase();
+            const cantidad = Number(payload.cantidad || 0);
+            const itemMatch = items.find((it) => String(it.id_insumo) === String(payload.id_insumo));
+
+            if (movePreset?.id_movimiento) {
+              await updateMovimiento(movePreset.id_movimiento, payload, token);
+            } else {
+              await createMovimiento(payload, token);
+            }
+
+            // Ajuste de stock en inventario
+            if (itemMatch) {
+              const prev = Number(itemMatch.cantidad_stock || 0);
+              const nuevaCantidad = tipo === 'salida' ? Math.max(0, prev - cantidad) : prev + cantidad;
+              try {
+                await updateInventario(itemMatch.id_inventario, {
+                  cantidad_stock: nuevaCantidad,
+                  unidad_medida: payload.unidad_medida,
+                  fecha: payload.fecha_movimiento,
+                }, token);
+              } catch (e) {
+                // Dejamos que fetchAll sincronice si falla el PATCH
+              }
+              // Actualización optimista de la tabla principal
+              setItems((prevItems) => prevItems.map((it) => (
+                String(it.id_inventario) === String(itemMatch.id_inventario)
+                  ? { ...it, cantidad_stock: nuevaCantidad, unidad_medida: payload.unidad_medida, fecha: payload.fecha_movimiento }
+                  : it
+              )));
+            } else if (tipo === 'entrada') {
+              // Si no existe en inventario y es una entrada, crear registro
+              try {
+                const created = await createInventario({
+                  id_insumo: Number(payload.id_insumo),
+                  cantidad_stock: cantidad,
+                  unidad_medida: payload.unidad_medida,
+                  fecha: payload.fecha_movimiento,
+                }, token);
+                const newItem = {
+                  id_inventario: created?.id_inventario || created?.id,
+                  cantidad_stock: created?.cantidad_stock ?? cantidad,
+                  unidad_medida: created?.unidad_medida ?? payload.unidad_medida,
+                  fecha: created?.fecha ?? payload.fecha_movimiento,
+                  id_insumo: created?.insumo?.id_insumo || Number(payload.id_insumo),
+                  nombre_insumo: created?.insumo?.nombre_insumo || (insumos.find(i => String(i.id_insumo || i.id) === String(payload.id_insumo))?.nombre_insumo || ''),
+                  codigo: created?.insumo?.codigo || '',
+                  categoria: created?.insumo?.id_categoria?.nombre || '',
+                  almacen: created?.insumo?.id_almacen?.nombre_almacen || '',
+                  id_categoria: created?.insumo?.id_categoria?.id_categoria ?? null,
+                  id_almacen: created?.insumo?.id_almacen?.id_almacen ?? null,
+                };
+                setItems((prevItems) => [newItem, ...prevItems]);
+              } catch (e) {
+                // Si falla la creación, lo sincronizamos con fetchAll
+              }
+            }
+
+            setNotice({ type: 'success', text: movePreset?.id_movimiento ? 'Movimiento actualizado' : 'Movimiento registrado' });
+          } catch (e) {
+            setNotice({ type: 'error', text: e?.message || 'Error procesando movimiento' });
+          } finally {
+            // Refrescar tablas de entradas/salidas y estado general
+            fetchAll();
+          }
+        }}
+      />
 
       <View style={{ height: 12 }} />
       <Text style={styles.sectionTitleGreen}>Entradas</Text>
@@ -180,8 +302,20 @@ export default function InventoryPage() {
                   <View style={[styles.cell, styles.wCant]}><View style={styles.pill}><Text style={styles.pillText}>{item.cantidad}</Text></View></View>
                   <Text style={[styles.cell, styles.wUni]}>{item.unidad_medida || '—'}</Text>
                   <View style={[styles.cell, styles.actions, styles.wAct]}>
-                    <Pressable style={styles.iconBtn} onPress={async () => { try { await updateMovimiento(item.id_movimiento, { cantidad: item.cantidad }, token); fetchAll(); } catch (e) { setError(e?.message || 'Error actualizando'); } }}><Feather name="edit-2" size={16} color="#16A34A" /></Pressable>
-                    <Pressable style={styles.iconBtn} onPress={() => setConfirm({ open: true, text: `¿Eliminar entrada de ${item.insumo_nombre}?`, action: async () => { await deleteMovimiento(item.id_movimiento, token); fetchAll(); } })}><Feather name="trash-2" size={16} color="#EF4444" /></Pressable>
+                    <Pressable style={styles.iconBtn} onPress={() => {
+                      setMovePreset({
+                        id_movimiento: item.id_movimiento,
+                        id_insumo: item.id_insumo,
+                        cantidad: item.cantidad,
+                        unidad_medida: item.unidad_medida,
+                        fecha_movimiento: item.fecha_movimiento,
+                        tipo_movimiento: item.tipo_movimiento,
+                        id_cultivo: item.id_cultivo,
+                        valor_unidad: item.valor_unidad,
+                      });
+                      setOpenMove(true);
+                    }}><Feather name="edit-2" size={16} color="#16A34A" /></Pressable>
+                    <Pressable style={styles.iconBtn} onPress={() => setConfirm({ open: true, text: `¿Eliminar entrada de ${item.insumo_nombre}?`, action: async () => { await deleteMovimiento(item.id_movimiento, token); fetchAll(); setNotice({ type: 'success', text: 'Movimiento eliminado' }); } })}><Feather name="trash-2" size={16} color="#EF4444" /></Pressable>
                   </View>
                 </View>
               )}
@@ -223,8 +357,18 @@ export default function InventoryPage() {
                   <View style={[styles.cell, styles.wCant]}><View style={styles.pill}><Text style={styles.pillText}>{item.cantidad}</Text></View></View>
                   <Text style={[styles.cell, styles.wUni]}>{item.unidad_medida || '—'}</Text>
                   <View style={[styles.cell, styles.actions, styles.wAct]}>
-                    <Pressable style={styles.iconBtn} onPress={async () => { try { await updateMovimiento(item.id_movimiento, { cantidad: item.cantidad }, token); fetchAll(); } catch (e) { setError(e?.message || 'Error actualizando'); } }}><Feather name="edit-2" size={16} color="#16A34A" /></Pressable>
-                    <Pressable style={styles.iconBtn} onPress={() => setConfirm({ open: true, text: `¿Eliminar salida de ${item.insumo_nombre}?`, action: async () => { await deleteMovimiento(item.id_movimiento, token); fetchAll(); } })}><Feather name="trash-2" size={16} color="#EF4444" /></Pressable>
+                    <Pressable style={styles.iconBtn} onPress={() => {
+                      setMovePreset({
+                        id_movimiento: item.id_movimiento,
+                        id_insumo: item.id_insumo,
+                        cantidad: item.cantidad,
+                        unidad_medida: item.unidad_medida,
+                        fecha_movimiento: item.fecha_movimiento,
+                        tipo_movimiento: item.tipo_movimiento,
+                      });
+                      setOpenMove(true);
+                    }}><Feather name="edit-2" size={16} color="#16A34A" /></Pressable>
+                    <Pressable style={styles.iconBtn} onPress={() => setConfirm({ open: true, text: `¿Eliminar salida de ${item.insumo_nombre}?`, action: async () => { await deleteMovimiento(item.id_movimiento, token); fetchAll(); setNotice({ type: 'success', text: 'Movimiento eliminado' }); } })}><Feather name="trash-2" size={16} color="#EF4444" /></Pressable>
                   </View>
                 </View>
               )}
@@ -303,4 +447,8 @@ const styles = StyleSheet.create({
   btnSecondaryText: { color: '#334155', fontSize: 13 },
   btnDanger: { backgroundColor: '#ef4444' },
   btnPrimaryText: { color: '#fff', fontSize: 13 },
+  notice: { marginTop: 8, borderRadius: 8, paddingVertical: 8, paddingHorizontal: 12 },
+  noticeSuccess: { backgroundColor: '#DCFCE7', borderWidth: 1, borderColor: '#86EFAC' },
+  noticeError: { backgroundColor: '#FEE2E2', borderWidth: 1, borderColor: '#FCA5A5' },
+  noticeText: { fontSize: 12, color: '#0f172a' },
 });

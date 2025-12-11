@@ -1,11 +1,11 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, Image, StyleSheet, Linking } from 'react-native';
-import Input from '../../components/atoms/Input';
-import Button from '../../components/atoms/Button';
-import { resetPassword } from '../../services/api';
+import { View, Text, StyleSheet, Image, Linking, Pressable } from 'react-native';
 import { useNavigation, useRoute } from '@react-navigation/native';
+import Input from '../atoms/Input';
+import Button from '../atoms/Button';
+import { resetPassword } from '../../services/api';
 
-export default function ResetPasswordPage() {
+export default function ResetPasswordModal() {
   const nav = useNavigation();
   const route = useRoute();
   const [token, setToken] = useState('');
@@ -14,7 +14,6 @@ export default function ResetPasswordPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
-  const [showTokenHelp, setShowTokenHelp] = useState(false);
 
   useEffect(() => {
     let mounted = true;
@@ -28,12 +27,14 @@ export default function ResetPasswordPage() {
         if (t && mounted) setToken(t);
       } catch {}
     };
+
     (async () => {
       try {
         const initial = await Linking.getInitialURL();
         if (mounted && initial) parseUrl(initial);
       } catch {}
     })();
+
     const sub = Linking.addEventListener('url', (e) => parseUrl(e?.url || ''));
     return () => { mounted = false; sub.remove(); };
   }, [route?.params]);
@@ -48,6 +49,7 @@ export default function ResetPasswordPage() {
       await resetPassword(token, password);
       setSuccess('Tu contraseña ha sido actualizada');
       setTimeout(() => {
+        nav.goBack();
         nav.replace('Login', { 
           alert: { type: 'success', title: '¡Éxito!', text: 'Tu contraseña ha sido restablecida. Inicia sesión.' }
         });
@@ -58,31 +60,23 @@ export default function ResetPasswordPage() {
   };
 
   return (
-    <View style={styles.root}>
-      <Image source={require('../../../assets/logo.png')} style={styles.logo} resizeMode="contain" />
-      <View style={styles.card}>
+    <View style={styles.backdrop}>
+      <View style={styles.modal}>
+        <View style={styles.header}>
+          <Image source={require('../../../assets/logo.png')} style={styles.logo} resizeMode="contain" />
+          <Pressable onPress={() => nav.goBack()} style={styles.closeBtn}>
+            <Text style={styles.closeText}>✕</Text>
+          </Pressable>
+        </View>
         <Text style={styles.title}>Restablecer contraseña</Text>
         <Text style={styles.message}>Ingresa tu nueva contraseña. Asegúrate de que sea segura y no la compartas con nadie.</Text>
         {!!error && <Text style={styles.error}>{error}</Text>}
         {!!success && <Text style={styles.success}>{success}</Text>}
         <Input label="Nueva contraseña" value={password} onChangeText={setPassword} placeholder="Mínimo 8 caracteres" secureTextEntry />
         <Input label="Confirmar contraseña" value={confirmPassword} onChangeText={setConfirmPassword} placeholder="Vuelve a escribir tu contraseña" secureTextEntry />
-
-        {/* Fallback: entrada manual del token cuando no se detecta automáticamente */}
         <View style={{ marginTop: 8 }}>
-          <Input
-            label="Token del enlace (si no se detecta)"
-            value={token}
-            onChangeText={setToken}
-            placeholder="Pega el token aquí"
-          />
+          <Input label="Token (si no se detecta)" value={token} onChangeText={setToken} placeholder="Pega el token aquí" />
         </View>
-        {(!token || showTokenHelp) && (
-          <Text style={styles.helper}>
-            Si abriste el enlace desde tu correo y no te trajo a esta pantalla, copia el valor después de "token=" en el enlace
-            de restablecimiento y pégalo en el campo de token arriba.
-          </Text>
-        )}
         <View style={{ marginTop: 12 }}>
           <Button title={loading ? '' : 'Restablecer contraseña'} onPress={handleSubmit} disabled={loading} />
         </View>
@@ -92,12 +86,15 @@ export default function ResetPasswordPage() {
 }
 
 const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: '#f4f5f7', alignItems: 'center', justifyContent: 'center', paddingHorizontal: 16 },
-  logo: { width: 220, height: 110, marginBottom: 12 },
-  card: { width: '100%', maxWidth: 420, backgroundColor: '#fff', borderRadius: 12, paddingHorizontal: 20, paddingVertical: 18, shadowColor: '#000', shadowOpacity: 0.08, shadowRadius: 10, shadowOffset: { width: 0, height: 4 }, elevation: 3 },
-  title: { fontSize: 20, fontWeight: '700', textAlign: 'center', marginBottom: 6, color: '#16A34A' },
+  backdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.25)', alignItems: 'center', justifyContent: 'center', padding: 16 },
+  modal: { width: '100%', maxWidth: 460, backgroundColor: '#fff', borderRadius: 16, paddingHorizontal: 20, paddingVertical: 18, shadowColor: '#000', shadowOpacity: 0.1, shadowRadius: 12, shadowOffset: { width: 0, height: 6 }, elevation: 5 },
+  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  logo: { width: 180, height: 90 },
+  closeBtn: { paddingHorizontal: 10, paddingVertical: 6 },
+  closeText: { fontSize: 18, color: '#111827' },
+  title: { fontSize: 20, fontWeight: '700', textAlign: 'center', marginTop: 6, marginBottom: 6, color: '#16A34A' },
   message: { fontSize: 13, color: '#334155', textAlign: 'center', marginBottom: 10 },
   error: { color: '#DC2626', textAlign: 'center', marginBottom: 8 },
   success: { color: '#16A34A', textAlign: 'center', marginBottom: 8 },
-  helper: { fontSize: 12, color: '#64748b', textAlign: 'center', marginTop: 6 },
 });
+

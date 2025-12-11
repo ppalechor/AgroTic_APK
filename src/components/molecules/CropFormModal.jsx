@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, TextInput, Pressable, StyleSheet, Modal, ScrollView, ActivityIndicator } from 'react-native';
+import { View, Text, TextInput, Pressable, StyleSheet, Modal, ScrollView, ActivityIndicator, Animated, PanResponder, KeyboardAvoidingView, Platform } from 'react-native';
 import { Picker } from '@react-native-picker/picker';
 import { Calendar, LocaleConfig } from 'react-native-calendars';
 
@@ -25,7 +25,7 @@ const tipoCultivoOptions = [
   { value: 'semiperennes', label: 'Semiperennes' }
 ];
 
-export default function CropFormModal({ visible, onClose, onSubmit, crop, loading }) {
+export default function CropFormModal({ visible, onClose, onSubmit, crop, loading, lots = [], insumos = [] }) {
   const [formData, setFormData] = useState({
     nombre_cultivo: '',
     tipo_cultivo: 'transitorios',
@@ -39,6 +39,22 @@ export default function CropFormModal({ visible, onClose, onSubmit, crop, loadin
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [dateField, setDateField] = useState('');
   const [datePicker, setDatePicker] = useState({ visible: false, type: null, temp: '' });
+  const pan = React.useRef(new Animated.ValueXY({ x: 0, y: 0 })).current;
+  const panResponder = React.useRef(
+    PanResponder.create({
+      onMoveShouldSetPanResponder: () => true,
+      onPanResponderGrant: () => {
+        pan.extractOffset();
+      },
+      onPanResponderMove: Animated.event([
+        null,
+        { dx: pan.x, dy: pan.y }
+      ], { useNativeDriver: false }),
+      onPanResponderRelease: () => {
+        pan.flattenOffset();
+      }
+    })
+  ).current;
 
   useEffect(() => {
     if (crop) {
@@ -79,6 +95,12 @@ export default function CropFormModal({ visible, onClose, onSubmit, crop, loadin
     setDatePicker({ visible: false, type: null, temp: '' });
   };
 
+  useEffect(() => {
+    if (datePicker.visible) {
+      pan.setValue({ x: 0, y: 0 });
+    }
+  }, [datePicker.visible]);
+
   const handleSubmit = async () => {
     const payload = {
       ...formData,
@@ -92,16 +114,19 @@ export default function CropFormModal({ visible, onClose, onSubmit, crop, loadin
 
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
-      <View style={styles.overlay}>
+      <KeyboardAvoidingView style={styles.overlay} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
         <View style={styles.card}>
           <Text style={styles.title}>{crop ? 'Editar Cultivo' : 'Nuevo Cultivo'}</Text>
-          <ScrollView style={styles.scroll}>
+          <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator>
             <TextInput
               style={styles.input}
               placeholder="Nombre del Cultivo"
               value={formData.nombre_cultivo}
               onChangeText={(value) => handleChange('nombre_cultivo', value)}
             />
+            {!formData.nombre_cultivo ? (
+              <Text style={styles.detailsMuted}>Ingresa el nombre del cultivo.</Text>
+            ) : null}
             <View style={styles.pickerContainer}>
               <Picker
                 selectedValue={formData.tipo_cultivo}
@@ -113,30 +138,57 @@ export default function CropFormModal({ visible, onClose, onSubmit, crop, loadin
                 ))}
               </Picker>
             </View>
-            <TextInput
-              style={styles.input}
-              placeholder="ID del Lote"
-              value={formData.id_lote}
-              onChangeText={(value) => handleChange('id_lote', value)}
-              keyboardType="numeric"
-            />
-            <TextInput
-              style={styles.input}
-              placeholder="ID del Insumo"
-              value={formData.id_insumo}
-              onChangeText={(value) => handleChange('id_insumo', value)}
-              keyboardType="numeric"
-            />
+            <Text style={styles.detailsMuted}>Selecciona el tipo de cultivo.</Text>
+            <View style={styles.pickerContainer}>
+              <Picker
+                selectedValue={String(formData.id_lote || '')}
+                onValueChange={(value) => handleChange('id_lote', String(value))}
+                style={styles.picker}
+              >
+                <Picker.Item label="Seleccionar lote..." value="" />
+                {(Array.isArray(lots?.items) ? lots.items : Array.isArray(lots) ? lots : []).map((l) => (
+                  <Picker.Item
+                    key={String(l.id_lote || l.id)}
+                    label={l.nombre_lote || l.nombre || `Lote ${l.id_lote || l.id}`}
+                    value={String(l.id_lote || l.id)}
+                  />
+                ))}
+              </Picker>
+            </View>
+            {!formData.id_lote ? (
+              <Text style={styles.detailsMuted}>Selecciona el lote donde se siembra.</Text>
+            ) : null}
+            <View style={styles.pickerContainer}>
+              <Picker
+                selectedValue={String(formData.id_insumo || '')}
+                onValueChange={(value) => handleChange('id_insumo', String(value))}
+                style={styles.picker}
+              >
+                <Picker.Item label="Seleccionar insumo..." value="" />
+                {(Array.isArray(insumos?.items) ? insumos.items : Array.isArray(insumos) ? insumos : []).map((i) => (
+                  <Picker.Item
+                    key={String(i.id_insumo || i.id)}
+                    label={i.nombre_insumo || i.nombre || `Insumo ${i.id_insumo || i.id}`}
+                    value={String(i.id_insumo || i.id)}
+                  />
+                ))}
+              </Picker>
+            </View>
+            <Text style={styles.detailsMuted}>Selecciona el insumo principal asociado (opcional).</Text>
             <Pressable style={styles.dateBtn} onPress={() => { setDateField('fecha_siembra'); setDatePicker({ visible: true, type: 'siembra', temp: formData.fecha_siembra ? formData.fecha_siembra.toISOString().slice(0,10) : '' }); }}>
-              <Text style={styles.dateText}>
+              <Text style={styles.dateText}
+              >
                 Fecha de Siembra: {formData.fecha_siembra ? formData.fecha_siembra.toLocaleDateString() : 'Seleccionar'}
               </Text>
             </Pressable>
+            <Text style={styles.detailsMuted}>Selecciona la fecha de siembra.</Text>
             <Pressable style={styles.dateBtn} onPress={() => { setDateField('fecha_cosecha_estimada'); setDatePicker({ visible: true, type: 'cosecha', temp: formData.fecha_cosecha_estimada ? formData.fecha_cosecha_estimada.toISOString().slice(0,10) : '' }); }}>
-              <Text style={styles.dateText}>
+              <Text style={styles.dateText}
+              >
                 Fecha de Cosecha Estimada: {formData.fecha_cosecha_estimada ? formData.fecha_cosecha_estimada.toLocaleDateString() : 'Seleccionar'}
               </Text>
             </Pressable>
+            <Text style={styles.detailsMuted}>Selecciona una fecha estimada; puedes actualizarla más adelante.</Text>
             <View style={styles.pickerContainer}>
               <Picker
                 selectedValue={formData.estado_cultivo}
@@ -148,6 +200,7 @@ export default function CropFormModal({ visible, onClose, onSubmit, crop, loadin
                 ))}
               </Picker>
             </View>
+            <Text style={styles.detailsMuted}>Selecciona el estado actual del cultivo.</Text>
             <TextInput
               style={[styles.input, styles.textArea]}
               placeholder="Observaciones"
@@ -156,6 +209,7 @@ export default function CropFormModal({ visible, onClose, onSubmit, crop, loadin
               multiline
               numberOfLines={3}
             />
+            <Text style={styles.detailsMuted}>Agrega notas y observaciones relevantes del cultivo.</Text>
           </ScrollView>
           <View style={styles.actions}>
             <Pressable style={[styles.btn, styles.btnSecondary]} onPress={onClose}>
@@ -166,42 +220,55 @@ export default function CropFormModal({ visible, onClose, onSubmit, crop, loadin
             </Pressable>
           </View>
         </View>
-      </View>
+      </KeyboardAvoidingView>
       {datePicker.visible && (
-        <View style={styles.overlay}>
-          <View style={styles.calendarCard}>
-            <View style={styles.modalHeaderBar}>
-              <Text style={{ color: '#fff', fontWeight: '700' }}>{datePicker.type === 'siembra' ? 'Fecha de Siembra' : 'Fecha de Cosecha Estimada'}</Text>
-            </View>
-            <View style={{ padding: 12 }}>
-              <Calendar
-                onDayPress={(d) => setDatePicker((p) => ({ ...p, temp: d.dateString }))}
-                markedDates={datePicker.temp ? { [datePicker.temp]: { selected: true, selectedColor: '#16A34A' } } : undefined}
-                enableSwipeMonths
-                firstDay={1}
-              />
-            </View>
-            <View style={{ flexDirection: 'row', justifyContent: 'flex-end', gap: 8, padding: 12 }}>
-              <Pressable style={styles.cancelBtn} onPress={() => setDatePicker({ visible: false, type: null, temp: '' })}>
-                <Text style={styles.cancelText}>Cancelar</Text>
-              </Pressable>
-              <Pressable style={styles.confirmBtn} onPress={handleDateConfirm}>
-                <Text style={styles.confirmText}>Confirmar</Text>
-              </Pressable>
-            </View>
+        <Modal visible transparent animationType="fade" onRequestClose={() => setDatePicker({ visible: false, type: null, temp: '' })} statusBarTranslucent presentationStyle="overFullScreen">
+          <View style={styles.calendarOverlay}>
+            <Animated.View style={[styles.calendarCard, { transform: [{ translateX: pan.x }, { translateY: pan.y }] }]} {...panResponder.panHandlers}>
+              <View style={styles.modalHeaderBar}>
+                <Text style={{ color: '#fff', fontWeight: '700' }}>{datePicker.type === 'siembra' ? 'Fecha de Siembra' : 'Fecha de Cosecha Estimada'}</Text>
+              </View>
+              <View style={{ padding: 12 }}>
+                <Calendar
+                  onDayPress={(d) => setDatePicker((p) => ({ ...p, temp: d.dateString }))}
+                  markedDates={datePicker.temp ? { [datePicker.temp]: { selected: true, selectedColor: '#16A34A' } } : undefined}
+                  enableSwipeMonths
+                  firstDay={1}
+                  style={styles.calendar}
+                  theme={{
+                    textDayFontSize: 12,
+                    textMonthFontSize: 14,
+                    textDayHeaderFontSize: 10,
+                    arrowColor: '#16A34A',
+                    monthTextColor: '#0f172a',
+                  }}
+                />
+              </View>
+              <View style={{ flexDirection: 'row', justifyContent: 'flex-end', gap: 8, padding: 12 }}>
+                <Pressable style={styles.cancelBtn} onPress={() => setDatePicker({ visible: false, type: null, temp: '' })}>
+                  <Text style={styles.cancelText}>Cancelar</Text>
+                </Pressable>
+                <Pressable style={styles.confirmBtn} onPress={handleDateConfirm}>
+                  <Text style={styles.confirmText}>Confirmar</Text>
+                </Pressable>
+              </View>
+            </Animated.View>
           </View>
-        </View>
+        </Modal>
       )}
     </Modal>
   );
 }
 
 const styles = StyleSheet.create({
-  overlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', alignItems: 'center' },
-  card: { width: '90%', maxHeight: '80%', backgroundColor: '#fff', borderRadius: 12, padding: 16 },
-  calendarCard: { width: '90%', backgroundColor: '#fff', borderRadius: 12, overflow: 'hidden' },
+  overlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', alignItems: 'stretch', paddingHorizontal: 12, paddingVertical: 20 },
+  card: { width: '100%', height: '90%', backgroundColor: '#fff', borderRadius: 12, padding: 16 },
+  calendarOverlay: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', alignItems: 'center' },
+  calendarCard: { width: '92%', maxWidth: 320, maxHeight: 420, backgroundColor: '#fff', borderRadius: 12, overflow: 'hidden', alignSelf: 'center' },
+  calendar: { alignSelf: 'center', width: '100%' },
   title: { fontSize: 18, fontWeight: '700', marginBottom: 16, textAlign: 'center' },
   scroll: { flex: 1 },
+  scrollContent: { flexGrow: 1, paddingBottom: 24 },
   input: { borderWidth: 1, borderColor: '#E4E7EC', borderRadius: 8, padding: 10, marginBottom: 12, fontSize: 14 },
   textArea: { height: 80, textAlignVertical: 'top' },
   pickerContainer: { borderWidth: 1, borderColor: '#E4E7EC', borderRadius: 8, marginBottom: 12 },
@@ -219,4 +286,5 @@ const styles = StyleSheet.create({
   cancelText: { color: '#334155', fontWeight: '600' },
   confirmBtn: { paddingHorizontal: 14, paddingVertical: 8, borderRadius: 8, backgroundColor: '#16A34A' },
   confirmText: { color: '#fff', fontWeight: '700' },
+  detailsMuted: { fontSize: 13, color: '#64748b' },
 });

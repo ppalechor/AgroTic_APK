@@ -47,11 +47,12 @@ export default function LotsPage() {
     }
   };
 
-  useEffect(() => { fetchData(); }, []);
+  useEffect(() => { if (token) fetchData(); }, [token]);
   useEffect(() => {
+    if (!token) return;
     const id = setTimeout(fetchData, 400);
     return () => clearTimeout(id);
-  }, [query]);
+  }, [token, query]);
 
   const filteredItems = useMemo(() => {
     if (!query) return items;

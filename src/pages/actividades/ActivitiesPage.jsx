@@ -3,7 +3,8 @@ import { View, Text, TextInput, FlatList, Pressable, StyleSheet, Modal, Activity
 import { Feather } from '@expo/vector-icons';
 import { Calendar, LocaleConfig } from 'react-native-calendars';
 import { useAuth } from '../../contexts/AuthContext';
-import { baseUrl, listActividades, createActividad, updateActividad, deleteActividad, listCultivos, uploadActividadFoto, listActividadFotos, deleteActividadFoto, createRealiza, listUsuarios } from '../../services/api';
+import { baseUrl, listActividades, createActividad, updateActividad, deleteActividad, listCultivos, uploadActividadFoto, listActividadFotos, deleteActividadFoto, createRealiza, listUsuarios, getActividadById } from '../../services/api';
+import PhotoUploadModal from '../../components/molecules/PhotoUploadModal';
 import ActivityFormModal from '../../components/molecules/ActivityFormModal';
 // import { Picker } from '@react-native-picker/picker';
 
@@ -33,6 +34,52 @@ function ConfirmModal({ visible, onCancel, onConfirm, text }) {
   );
 }
 
+function SuccessModal({ visible, text, onClose }) {
+  React.useEffect(() => {
+    if (!visible) return;
+    const id = setTimeout(() => onClose && onClose(), 1500);
+    return () => clearTimeout(id);
+  }, [visible]);
+  return (
+    <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
+      <View style={styles.modalOverlay}>
+        <View style={styles.modalCard}>
+          <Text style={styles.modalTitle}>Operación exitosa</Text>
+          <Text style={styles.modalText}>{text}</Text>
+          <View style={styles.modalActions}>
+            <Pressable style={[styles.btn, { backgroundColor: '#16A34A' }]} onPress={onClose}>
+              <Text style={styles.btnPrimaryText}>Cerrar</Text>
+            </Pressable>
+          </View>
+        </View>
+      </View>
+    </Modal>
+  );
+}
+
+function ErrorModal({ visible, text, onClose }) {
+  React.useEffect(() => {
+    if (!visible) return;
+    const id = setTimeout(() => onClose && onClose(), 1500);
+    return () => clearTimeout(id);
+  }, [visible]);
+  return (
+    <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
+      <View style={styles.modalOverlay}>
+        <View style={styles.modalCard}>
+          <Text style={[styles.modalTitle, { color: '#DC2626' }]}>Error</Text>
+          <Text style={styles.modalText}>{text}</Text>
+          <View style={styles.modalActions}>
+            <Pressable style={[styles.btn, styles.btnSecondary]} onPress={onClose}>
+              <Text style={styles.btnSecondaryText}>Cerrar</Text>
+            </Pressable>
+          </View>
+        </View>
+      </View>
+    </Modal>
+  );
+}
+
 function DetailsModal({ visible, onClose, item, statusConfig, photos = [], onDeletePhoto, onOpenPhoto, canDeletePhotos = true }) {
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
@@ -50,6 +97,47 @@ function DetailsModal({ visible, onClose, item, statusConfig, photos = [], onDel
                 <Text style={[styles.statusText, { color: statusConfig[item?.estado]?.color || '#000' }]}>{item?.estado || '—'}</Text>
               </View>
             </View>
+            <Text style={styles.detailsSectionTitle}>Costos</Text>
+            <View style={styles.detailRow}><Text style={styles.detailLabel}>Mano de obra</Text><Text style={styles.detailValue}>{fmtCOP(item?.costo_mano_obra ?? item?.costoManoObra)}</Text></View>
+            <View style={styles.detailRow}><Text style={styles.detailLabel}>Maquinaria</Text><Text style={styles.detailValue}>{fmtCOP(item?.costo_maquinaria ?? item?.costoMaquinaria)}</Text></View>
+            {Array.isArray(item?.recursos) && item.recursos.length > 0 ? (
+              <>
+                <Text style={styles.detailsSectionTitle}>Recursos utilizados</Text>
+                {(item.recursos || []).map((r, idx) => {
+                  const tipo = r.tipo_recurso || r.tipo || 'consumible';
+                  const isCons = String(tipo) === 'consumible';
+                  const cu = Number(r.costo_unitario || 0);
+                  const cant = Number(r.cantidad || 0);
+                  const hrs = Number(r.horas_uso || 0);
+                  const subtotal = isCons ? (cant * cu) : (hrs * cu);
+                  return (
+                    <View key={`res-${idx}`} style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
+                      <Text style={styles.detailLabel}>{tipo === 'herramienta' ? 'Herramienta' : 'Consumible'}</Text>
+                      <Text style={styles.detailValue}>
+                        {isCons ? `${cant} x ${fmtCOP(cu)}` : `${hrs}h x ${fmtCOP(cu)}`} = {fmtCOP(subtotal)}
+                      </Text>
+                    </View>
+                  );
+                })}
+                {(() => {
+                  const sum = (item.recursos || []).reduce((acc, r) => {
+                    const cu = Number(r.costo_unitario || 0);
+                    const cant = Number(r.cantidad || 0);
+                    const hrs = Number(r.horas_uso || 0);
+                    const tipo = r.tipo_recurso || r.tipo || 'consumible';
+                    const sub = String(tipo) === 'consumible' ? (cant * cu) : (hrs * cu);
+                    return acc + (Number.isFinite(sub) ? sub : 0);
+                  }, 0);
+                  const total = (Number(item?.costo_mano_obra || 0) + Number(item?.costo_maquinaria || 0) + sum);
+                  return (
+                    <>
+                      <View style={styles.detailRow}><Text style={styles.detailLabel}>Total recursos</Text><Text style={styles.detailValue}>{fmtCOP(sum)}</Text></View>
+                      <View style={styles.detailRow}><Text style={styles.detailLabel}>Costo total actividad</Text><Text style={styles.detailValue}>{fmtCOP(total)}</Text></View>
+                    </>
+                  );
+                })()}
+              </>
+            ) : null}
             <Text style={styles.detailsSectionTitle}>Fotodocumentación</Text>
             {Array.isArray(photos) && photos.length > 0 ? (
               <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginTop: 8 }}>
@@ -100,6 +188,9 @@ export default function ActivitiesPage() {
   const [photoError, setPhotoError] = useState('');
   const [openPreview, setOpenPreview] = useState(false);
   const [previewUri, setPreviewUri] = useState('');
+  const [openPhotoModal, setOpenPhotoModal] = useState(false);
+  const [activityForPhoto, setActivityForPhoto] = useState(null);
+  
   const [saving, setSaving] = useState(false);
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
@@ -112,6 +203,10 @@ export default function ActivitiesPage() {
   const [datePicker, setDatePicker] = useState({ visible: false, type: null, temp: '' });
   const [users, setUsers] = useState([]);
   const isGuest = useMemo(() => String(user?.id_rol?.nombre_rol || user?.nombre_rol || user?.rol || '').toLowerCase() === 'invitado', [user]);
+  const [openSuccess, setOpenSuccess] = useState(false);
+  const [successText, setSuccessText] = useState('');
+  const [openError, setOpenError] = useState(false);
+  const [errorText, setErrorText] = useState('');
 
   const statusConfig = {
     pendiente: { color: '#f57c00', bgColor: '#fff3e0' },
@@ -124,12 +219,42 @@ export default function ActivitiesPage() {
     setLoading(true);
     setError('');
     try {
-      const params = { q: query, page, limit: 10 };
+      const params = { q: query, page, limit: 5 };
       if (selectedCrop) params.id_cultivo = selectedCrop;
       if (startDate) params.fecha_inicio = startDate;
       if (endDate) params.fecha_fin = endDate;
       const { items: list, meta } = await listActividades(token, params);
-      setItems(list);
+      const formatUserName = (u) => {
+        try {
+          if (!u) return '';
+          if (typeof u === 'object') {
+            const nombres = u.nombres || u.nombre || '';
+            const apellidos = u.apellidos || u.apellido || '';
+            const full = `${String(nombres || '').trim()} ${String(apellidos || '').trim()}`.trim();
+            return full || (u.username || u.user_name || u.name || '');
+          }
+          const s = String(u).trim();
+          if (/^\d+$/.test(s)) return `Usuario #${s}`;
+          return s;
+        } catch { return ''; }
+      };
+      const pickResponsable = (a) => {
+        if (!a) return null;
+        if (a.responsable !== undefined) return a.responsable;
+        if (a.usuario !== undefined) return a.usuario;
+        if (a.responsable_nombre !== undefined) return a.responsable_nombre;
+        if (a.encargado !== undefined) return a.encargado;
+        if (a.user !== undefined) return a.user;
+        if (a.id_usuario !== undefined) return a.id_usuario;
+        if (a.id_responsable !== undefined) return a.id_responsable;
+        return null;
+      };
+      const normalized = (Array.isArray(list) ? list : []).map((it) => {
+        const respRaw = pickResponsable(it);
+        const responsable = formatUserName(respRaw);
+        return responsable ? { ...it, responsable } : it;
+      });
+      setItems(normalized);
       setTotalPages(meta?.totalPages || 1);
     } catch (e) {
       setError(e?.message || 'Error obteniendo actividades');
@@ -147,12 +272,15 @@ export default function ActivitiesPage() {
     }
   };
 
-  useEffect(() => { fetchData(); }, [page]);
+  useEffect(() => { if (token) fetchData(); }, [token, page]);
   useEffect(() => {
+    if (!token) return;
+    setPage(1);
     const id = setTimeout(fetchData, 400);
     return () => clearTimeout(id);
-  }, [query, selectedCrop, startDate, endDate]);
-  useEffect(() => { fetchCrops(); }, []);
+  }, [token, query, selectedCrop, startDate, endDate]);
+  useEffect(() => { if (token) fetchCrops(); }, [token]);
+  
   useEffect(() => {
     const fetchUsers = async () => {
       try {
@@ -191,6 +319,8 @@ export default function ActivitiesPage() {
       <Text numberOfLines={1} ellipsizeMode="tail" style={[styles.cell, styles.colCultivo]}>{getCropName(item.id_cultivo) || '—'}</Text>
       <Text numberOfLines={1} ellipsizeMode="tail" style={[styles.cell, styles.colFecha]}>{item.fecha ? new Date(item.fecha).toLocaleDateString() : '—'}</Text>
       <Text numberOfLines={1} ellipsizeMode="tail" style={[styles.cell, styles.colResp]}>{item.responsable || '—'}</Text>
+      <Text numberOfLines={1} ellipsizeMode="tail" style={[styles.cell, styles.colCost]}>{fmtCOP(item.costo_mano_obra ?? item.costoManoObra)}</Text>
+      <Text numberOfLines={1} ellipsizeMode="tail" style={[styles.cell, styles.colCost]}>{fmtCOP(item.costo_maquinaria ?? item.costoMaquinaria)}</Text>
       <View style={[styles.cell, styles.colEstado]}>
         <View style={[styles.statusChip, { backgroundColor: statusConfig[item.estado]?.bgColor || '#f0f0f0' }]}>
           <Text style={[styles.statusText, { color: statusConfig[item.estado]?.color || '#000' }]}>{statusConfig[item.estado]?.label || item.estado || '—'}</Text>
@@ -198,33 +328,9 @@ export default function ActivitiesPage() {
       </View>
       <View style={[styles.cell, styles.colActions, styles.actions]}>
         {!isGuest && (
-          <Pressable style={styles.iconBtn} onPress={async () => {
-          try {
-            setPhotoError('');
-            const mod = await import('expo-image-picker');
-            const { status } = await mod.requestCameraPermissionsAsync();
-            if (status !== 'granted') { setPhotoError('Permiso de cámara denegado'); return; }
-            const res = await mod.launchCameraAsync({ allowsEditing: true, quality: 0.7 });
-            if (!res.canceled && res.assets && res.assets[0]?.uri) {
-              const asset = res.assets[0];
-              const id = item?.id_actividad || item?.id;
-              if (!id) { setPhotoError('Actividad no seleccionada'); return; }
-              try {
-                await uploadActividadFoto(id, { uri: asset.uri, name: 'actividad.jpg', type: 'image/jpeg' }, token);
-                const arr = await listActividadFotos(id, token);
-                setDetailsItem(item);
-                setDetailPhotos(arr.map((f) => ({ id: f.id, uri: f.url_imagen })));
-                setOpenDetails(true);
-              } catch (e) {
-                setPhotoError(e?.message || 'Error subiendo foto');
-              }
-            }
-          } catch (e) {
-            setPhotoError('Instala expo-image-picker para usar cámara');
-          }
-        }}><Feather name="camera" size={16} color="#16A34A" /></Pressable>
+          <Pressable style={styles.iconBtn} onPress={() => { setDetailsItem(item); setActivityForPhoto(item); setOpenPhotoModal(true); }}><Feather name="camera" size={16} color="#16A34A" /></Pressable>
         )}
-        <Pressable style={styles.iconBtn} onPress={async () => { setPhotoError(''); setDetailsItem(item); setOpenDetails(true); try { const arr = await listActividadFotos(item.id_actividad || item.id, token); setDetailPhotos(arr.map((f) => ({ id: f.id, uri: f.url_imagen }))); } catch (e) { setDetailPhotos([]); } }}><Feather name="eye" size={16} color="#2080FE" /></Pressable>
+        <Pressable style={styles.iconBtn} onPress={async () => { setPhotoError(''); setOpenDetails(true); try { const full = await getActividadById(item.id_actividad || item.id, token); setDetailsItem(full || item); const arr = await listActividadFotos(item.id_actividad || item.id, token); setDetailPhotos(arr.map((f) => ({ id: f.id, uri: f.url_imagen }))); } catch (e) { setDetailsItem(item); setDetailPhotos([]); } }}><Feather name="eye" size={16} color="#2080FE" /></Pressable>
         {!isGuest && (
           <Pressable style={styles.iconBtn} onPress={() => { setToEdit(item); setOpenForm(true); }}><Feather name="edit-2" size={16} color="#16A34A" /></Pressable>
         )}
@@ -239,6 +345,8 @@ export default function ActivitiesPage() {
     const crop = crops.find(c => c.id_cultivo === cropId || c.id === cropId);
     return crop ? (crop.nombre_cultivo || crop.displayName || crop.tipo_cultivo) : 'N/A';
   };
+
+  
 
   return (
     <View style={styles.root}>
@@ -296,6 +404,8 @@ export default function ActivitiesPage() {
               <Text style={[styles.th, styles.colCultivo]}>Cultivo</Text>
               <Text style={[styles.th, styles.colFecha]}>Fecha</Text>
               <Text style={[styles.th, styles.colResp]}>Responsable</Text>
+              <Text style={[styles.th, styles.colCost]}>Costo Mano de Obra</Text>
+              <Text style={[styles.th, styles.colCost]}>Costo Maquinaria</Text>
               <Text style={[styles.th, styles.colEstado]}>Estado</Text>
               {!isGuest && <Text style={[styles.th, styles.colActions]}>Acciones</Text>}
             </View>
@@ -304,31 +414,30 @@ export default function ActivitiesPage() {
                 data={filteredItems}
                 renderItem={renderItem}
                 keyExtractor={(it) => String(it.id_actividad || it.id)}
+                nestedScrollEnabled
               />
             )}
           </View>
         </ScrollView>
       </View>
 
-      {totalPages > 1 && (
-        <View style={styles.pagination}>
-          <Pressable
-            style={[styles.pageBtn, page === 1 && styles.disabled]}
-            onPress={() => page > 1 && setPage(page - 1)}
-            disabled={page === 1}
-          >
-            <Text style={styles.pageText}>Anterior</Text>
-          </Pressable>
-          <Text style={styles.pageInfo}>Página {page} de {totalPages}</Text>
-          <Pressable
-            style={[styles.pageBtn, page === totalPages && styles.disabled]}
-            onPress={() => page < totalPages && setPage(page + 1)}
-            disabled={page === totalPages}
-          >
-            <Text style={styles.pageText}>Siguiente</Text>
-          </Pressable>
-        </View>
-      )}
+      <View style={styles.pagination}>
+        <Pressable
+          style={[styles.pageBtn, page === 1 && styles.disabled]}
+          onPress={() => page > 1 && setPage(page - 1)}
+          disabled={page === 1}
+        >
+          <Text style={styles.pageText}>Anterior</Text>
+        </Pressable>
+        <Text style={styles.pageInfo}>Página {page} de {totalPages}</Text>
+        <Pressable
+          style={[styles.pageBtn, page === totalPages && styles.disabled]}
+          onPress={() => page < totalPages && setPage(page + 1)}
+          disabled={page === totalPages}
+        >
+          <Text style={styles.pageText}>Siguiente</Text>
+        </Pressable>
+      </View>
 
       <ConfirmModal
         visible={openConfirm}
@@ -339,8 +448,12 @@ export default function ActivitiesPage() {
             await deleteActividad(toDelete?.id_actividad || toDelete?.id, token);
             setOpenConfirm(false); setToDelete(null);
             fetchData();
+            setSuccessText('Actividad eliminada exitosamente.');
+            setOpenSuccess(true);
           } catch (e) {
-            setError(e?.message || 'Error eliminando actividad');
+            const msg = e?.message || 'Error eliminando actividad';
+            setErrorText(msg);
+            setOpenError(true);
           }
         }}
       />
@@ -372,6 +485,8 @@ export default function ActivitiesPage() {
                 const idAct = toEdit.id_actividad || toEdit.id;
                 try { await createRealiza({ usuario: { id_usuarios: id_usuario }, actividad: { id_actividad: idAct } }, token); } catch (e) {}
               }
+              setSuccessText('Actividad actualizada exitosamente.');
+              setOpenSuccess(true);
             } else {
               if (!actividadPayload.id_cultivo) {
                 throw new Error('Selecciona un cultivo para crear la actividad');
@@ -381,11 +496,15 @@ export default function ActivitiesPage() {
               if (id_usuario && idAct) {
                 try { await createRealiza({ usuario: { id_usuarios: id_usuario }, actividad: { id_actividad: idAct } }, token); } catch (e) {}
               }
+              setSuccessText('Actividad creada exitosamente.');
+              setOpenSuccess(true);
             }
             setOpenForm(false); setToEdit(null);
             fetchData();
           } catch (e) {
-            throw e;
+            const msg = e?.message || 'Error guardando actividad';
+            setErrorText(msg);
+            setOpenError(true);
           } finally {
             setSaving(false);
           }
@@ -477,12 +596,17 @@ export default function ActivitiesPage() {
         canDeletePhotos={!isGuest}
         onDeletePhoto={async (pid) => {
           try {
+            console.log('[ActivitiesPage] delete photo id=', pid);
             const id = detailsItem?.id_actividad || detailsItem?.id;
             await deleteActividadFoto(pid, token);
             const arr = await listActividadFotos(id, token);
             setDetailPhotos(arr.map((f) => ({ id: f.id, uri: f.url_imagen })));
+            setSuccessText('Foto eliminada exitosamente.');
+            setOpenSuccess(true);
           } catch (e) {
-            setError(e?.message || 'No se pudo eliminar la foto');
+            const msg = e?.message || 'No se pudo eliminar la foto';
+            setErrorText(msg);
+            setOpenError(true);
           }
         }}
         onOpenPhoto={(uri) => { setPreviewUri(uri); setOpenPreview(true); }}
@@ -497,6 +621,34 @@ export default function ActivitiesPage() {
           <Image source={{ uri: previewUri }} style={{ width: '92%', height: '80%' }} resizeMode="contain" />
         </View>
       </Modal>
+
+      <SuccessModal visible={openSuccess} text={successText} onClose={() => { setOpenSuccess(false); setSuccessText(''); }} />
+      <ErrorModal visible={openError} text={errorText} onClose={() => { setOpenError(false); setErrorText(''); }} />
+
+      {/* Modal de subida de fotos (cámara/galería) */}
+      {openPhotoModal ? (
+          <PhotoUploadModal
+            visible={openPhotoModal}
+            activity={activityForPhoto}
+            onClose={() => { setOpenPhotoModal(false); setActivityForPhoto(null); }}
+            onUploaded={async () => {
+              try {
+                const id = (activityForPhoto?.id_actividad || activityForPhoto?.id);
+                if (id) {
+                  const arr = await listActividadFotos(id, token);
+                  setDetailPhotos(arr.map((f) => ({ id: f.id, uri: f.url_imagen })));
+                }
+                setSuccessText('Foto subida correctamente.');
+                setOpenSuccess(true);
+                setOpenPhotoModal(false);
+              } catch (e) {
+                const msg = e?.message || 'No se pudo refrescar las fotos';
+                setErrorText(msg);
+                setOpenError(true);
+              }
+            }}
+          />
+      ) : null}
     </View>
   );
 }
@@ -532,6 +684,7 @@ const styles = StyleSheet.create({
   colCultivo: { width: 160 },
   colFecha: { width: 120 },
   colResp: { width: 160 },
+  colCost: { width: 160 },
   colEstado: { width: 120 },
   colActions: { width: 160 },
   statusChip: { paddingHorizontal: 8, paddingVertical: 4, borderRadius: 12 },
@@ -566,3 +719,9 @@ const styles = StyleSheet.create({
   photoImg: { width: '100%', height: '100%' },
   photoDel: { position: 'absolute', top: 4, right: 4, backgroundColor: 'rgba(0,0,0,0.5)', borderRadius: 10, padding: 4 },
 });
+const fmtCOP = (n) => {
+  const v = Number(n);
+  if (!Number.isFinite(v)) return '—';
+  return `COP ${Math.round(v).toLocaleString('es-CO')}`;
+};
+  

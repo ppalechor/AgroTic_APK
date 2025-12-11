@@ -1,8 +1,14 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { Modal, View, Text, StyleSheet } from 'react-native';
 import Button from '../atoms/Button';
+import Input from '../atoms/Input';
 
-export default function InventoryItemModal({ visible, onClose, item }) {
+export default function InventoryItemModal({ visible, onClose, item, editable = false, onSave }) {
+  const [values, setValues] = useState({ cantidad_stock: '', unidad_medida: '' });
+  useEffect(() => {
+    if (item) setValues({ cantidad_stock: String(item.cantidad_stock || ''), unidad_medida: item.unidad_medida || '' });
+    else setValues({ cantidad_stock: '', unidad_medida: '' });
+  }, [item, visible]);
   if (!visible || !item) return null;
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
@@ -12,10 +18,21 @@ export default function InventoryItemModal({ visible, onClose, item }) {
           <View style={styles.content}>
             <View style={styles.row}><Text style={styles.label}>Nombre:</Text><Text style={styles.value}>{item.nombre_insumo || '—'}</Text></View>
             <View style={styles.row}><Text style={styles.label}>Código:</Text><Text style={styles.value}>{item.codigo || '—'}</Text></View>
-            <View style={styles.row}><Text style={styles.label}>Stock:</Text><Text style={styles.value}>{item.cantidad_stock} {item.unidad_medida}</Text></View>
+            {editable ? (
+              <View style={{ marginBottom: 10 }}>
+                <Input label="Cantidad" value={String(values.cantidad_stock)} onChangeText={(v) => setValues((p) => ({ ...p, cantidad_stock: v }))} placeholder="Ej: 10" />
+                <Input label="Unidad" value={values.unidad_medida} onChangeText={(v) => setValues((p) => ({ ...p, unidad_medida: v }))} placeholder="Ej: kg, L, und" />
+              </View>
+            ) : (
+              <View style={styles.row}><Text style={styles.label}>Stock:</Text><Text style={styles.value}>{item.cantidad_stock} {item.unidad_medida}</Text></View>
+            )}
             <View style={styles.row}><Text style={styles.label}>Fecha:</Text><Text style={styles.value}>{item.fecha || '—'}</Text></View>
           </View>
-          <View style={styles.footer}><Button title="Cerrar" onPress={onClose} /></View>
+          <View style={styles.footer}>
+            {editable ? (<Button title="Guardar" onPress={async () => { const qty = Number(values.cantidad_stock || 0); const unit = String(values.unidad_medida || '').trim(); if (onSave) { await onSave({ cantidad_stock: qty, unidad_medida: unit }); } onClose(); }} />) : null}
+            <View style={{ width: 8 }} />
+            <Button title="Cerrar" onPress={onClose} />
+          </View>
         </View>
       </View>
     </Modal>

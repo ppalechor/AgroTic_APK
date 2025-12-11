@@ -77,7 +77,14 @@ const toArrayItems = (data) => {
 };
 
 const permissionService = {
+  // Exponer utilidades de normalización para uso externo (UI, otros servicios)
+  normalizeAction,
+  normalizeResource,
+  normalizeKey,
+  normalizeKeyWithAction,
+
   list: async (token) => {
+    console.log('[permissionService] GET', PERMISOS_URL);
     const res = await fetch(PERMISOS_URL, { headers: authHeader(token) });
     const contentType = res.headers.get('content-type') || '';
     let data = [];
@@ -92,7 +99,17 @@ const permissionService = {
   },
 
   create: async ({ recurso, accion, nombre_permiso, descripcion, activo = true }, token) => {
-    const payload = { recurso, accion, nombre_permiso, descripcion, activo };
+    const resNorm = normalizeResource(recurso);
+    const actNorm = normalizeAction(accion);
+    const clave = `${resNorm}:${actNorm}`;
+    const payload = {
+      clave,
+      recurso: resNorm,
+      accion: actNorm,
+      nombre_permiso: nombre_permiso && String(nombre_permiso).trim().length ? nombre_permiso : clave,
+      descripcion,
+      activo,
+    };
     const res = await fetch(PERMISOS_URL, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', ...authHeader(token) },
@@ -147,7 +164,12 @@ const permissionService = {
 
   getMyKeys: async (token) => {
     const url = `${PERMISOS_URL}/usuario/me`;
-    const res = await fetch(url, { headers: authHeader(token) });
+    console.log('[permissionService] GET', url, 'hasToken=', !!(token || getToken()));
+    const res = await fetch(url, { headers: { Accept: 'application/json', ...authHeader(token) } });
+    if (!res.ok) {
+      // 401/403/400 -> devolver vacío para no romper flujo de login
+      return [];
+    }
     const contentType = res.headers.get('content-type') || '';
     const data = contentType.includes('application/json') ? await res.json() : [];
 

@@ -15,14 +15,21 @@ export default function ForgotPasswordPage() {
     setLoading(true);
     setError('');
     try {
-      await requestPasswordReset(email.trim());
-      nav.replace('Login', {
-        alert: {
-          type: 'success',
-          title: '¡Enlace Enviado!',
-          text: `Hemos enviado un enlace a ${email.trim()} para restablecer tu contraseña.`,
-        },
-      });
+      const data = await requestPasswordReset(email.trim());
+      const token = data?.token;
+      const resetUrl = data?.resetUrl;
+      if (token) {
+        // Navegar a la página de restablecimiento con el token
+        nav.navigate('Reset', { token });
+      } else {
+        nav.replace('Login', {
+          alert: {
+            type: 'success',
+            title: '¡Enlace generado!',
+            text: resetUrl ? `Si no ves el correo, usa el enlace: ${resetUrl}` : `Hemos generado tu enlace de recuperación.`,
+          },
+        });
+      }
     } catch (e) {
       setError(e?.message || 'Ocurrió un error. Intenta de nuevo');
     } finally {
@@ -61,4 +68,3 @@ const styles = StyleSheet.create({
   alertTitle: { color: '#B91C1C', fontWeight: '700', marginBottom: 4 },
   alertText: { color: '#B91C1C' },
 });
-

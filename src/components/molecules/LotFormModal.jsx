@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, TextInput, Pressable, StyleSheet, Modal, ScrollView, ActivityIndicator, Switch } from 'react-native';
+import { View, Text, TextInput, Pressable, StyleSheet, Modal, ScrollView, ActivityIndicator, Switch, Platform } from 'react-native';
 
 export default function LotFormModal({ visible, onClose, onSubmit, lot, loading }) {
   const [formData, setFormData] = useState({
@@ -50,7 +50,7 @@ export default function LotFormModal({ visible, onClose, onSubmit, lot, loading 
       <View style={styles.overlay}>
         <View style={styles.card}>
           <Text style={styles.title}>{lot ? 'Editar Lote' : 'Nuevo Lote'}</Text>
-          <ScrollView style={styles.scroll}>
+          <ScrollView style={styles.scroll} keyboardShouldPersistTaps="handled" contentContainerStyle={{ paddingBottom: 8 }}>
             {error ? (
               <Text style={{ color: '#DC2626', marginBottom: 8 }}>{error}</Text>
             ) : null}
@@ -92,11 +92,11 @@ export default function LotFormModal({ visible, onClose, onSubmit, lot, loading 
 
 const styles = StyleSheet.create({
   overlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', alignItems: 'center' },
-  card: { width: '90%', maxHeight: '80%', backgroundColor: '#fff', borderRadius: 12, padding: 16 },
+  card: { width: '95%', maxHeight: Platform.select({ web: 520, default: '80%' }), backgroundColor: '#fff', borderRadius: 12, padding: 16 },
   title: { fontSize: 18, fontWeight: '700', marginBottom: 16, textAlign: 'center' },
-  scroll: { flex: 1 },
+  scroll: { maxHeight: Platform.select({ web: 380, default: 360 }) },
   input: { borderWidth: 1, borderColor: '#E4E7EC', borderRadius: 8, padding: 10, marginBottom: 12, fontSize: 14 },
-  textArea: { height: 80, textAlignVertical: 'top' },
+  textArea: { height: 100, textAlignVertical: 'top' },
   switchContainer: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 },
   switchLabel: { fontSize: 14, color: '#0f172a' },
   actions: { flexDirection: 'row', justifyContent: 'flex-end', marginTop: 16 },

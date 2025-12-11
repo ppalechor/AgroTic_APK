@@ -11,18 +11,50 @@ import cropService from '../../services/cropService';
 import LotFormModal from '../../components/molecules/LotFormModal';
 import SublotFormModal from '../../components/molecules/SublotFormModal';
 
-// Convierte diferentes formatos de coordenadas a arreglo de { latitude, longitude }
 const toLatLng = (input) => {
   if (!input) return [];
   try {
-    // Si viene como objeto GeoJSON { type, coordinates }
-    const coords = input?.coordinates ? input.coordinates : input;
+    const hasType = input && typeof input === 'object' && typeof input.type === 'string' && input.coordinates;
+    if (hasType) {
+      const t = String(input.type).toUpperCase();
+      const c = input.coordinates;
+      if (t === 'POLYGON') {
+        const ring = Array.isArray(c) && Array.isArray(c[0]) ? c[0] : [];
+        return (ring || []).map(([lng, lat]) => ({ latitude: lat, longitude: lng }));
+      }
+      if (t === 'MULTIPOLYGON') {
+        const firstPoly = Array.isArray(c) && Array.isArray(c[0]) ? c[0] : [];
+        const ring = Array.isArray(firstPoly) && Array.isArray(firstPoly[0]) ? firstPoly[0] : [];
+        return (ring || []).map(([lng, lat]) => ({ latitude: lat, longitude: lng }));
+      }
+      if (t === 'LINESTRING') {
+        const pts = Array.isArray(c) ? c : [];
+        return pts.map(([lng, lat]) => ({ latitude: lat, longitude: lng }));
+      }
+    }
 
-    // Si viene como string WKT: POLYGON((lng lat, lng lat, ...))
+    const coords = input?.coordinates ? input.coordinates : input;
     if (typeof coords === 'string') {
       const wkt = String(coords).toUpperCase();
+      if (wkt.includes('MULTIPOLYGON')) {
+        const inner = wkt.split('(((')[1]?.split(')))')[0] || '';
+        const first = inner.split(')),(')[0] || inner;
+        return first
+          .split(',')
+          .map((pair) => pair.trim().split(/\s+/))
+          .map(([lngStr, latStr]) => ({ latitude: parseFloat(latStr), longitude: parseFloat(lngStr) }))
+          .filter((p) => Number.isFinite(p.latitude) && Number.isFinite(p.longitude));
+      }
       if (wkt.includes('POLYGON')) {
         const inner = wkt.split('((')[1]?.split('))')[0] || '';
+        return inner
+          .split(',')
+          .map((pair) => pair.trim().split(/\s+/))
+          .map(([lngStr, latStr]) => ({ latitude: parseFloat(latStr), longitude: parseFloat(lngStr) }))
+          .filter((p) => Number.isFinite(p.latitude) && Number.isFinite(p.longitude));
+      }
+      if (wkt.includes('LINESTRING')) {
+        const inner = wkt.split('(')[1]?.split(')')[0] || '';
         return inner
           .split(',')
           .map((pair) => pair.trim().split(/\s+/))
@@ -32,14 +64,15 @@ const toLatLng = (input) => {
       return [];
     }
 
-    // Si es un arreglo: puede ser [[lng,lat], ...] o [[[lng,lat], ...], [huecos]]
     if (Array.isArray(coords)) {
-      // Polygon con anillos: [anilloExterior, ...]
+      if (Array.isArray(coords[0]) && Array.isArray(coords[0][0]) && Array.isArray(coords[0][0][0])) {
+        const ring = coords[0][0];
+        return (ring || []).map(([lng, lat]) => ({ latitude: lat, longitude: lng }));
+      }
       if (Array.isArray(coords[0]) && Array.isArray(coords[0][0])) {
         const outerRing = coords[0];
         return outerRing.map(([lng, lat]) => ({ latitude: lat, longitude: lng }));
       }
-      // Arreglo plano de pares [lng,lat]
       if (Array.isArray(coords[0])) {
         return coords.map(([lng, lat]) => ({ latitude: lat, longitude: lng }));
       }
@@ -81,6 +114,16 @@ const polygonAreaMeters = (positions) => {
   return Math.abs(area / 2);
 };
 
+// Sanitiza coordenadas: filtra puntos inválidos y limita rangos
+const sanitizePositions = (positions) => {
+  const pts = Array.isArray(positions) ? positions : [];
+  return pts.filter((p) => {
+    const lat = Number(p?.latitude);
+    const lng = Number(p?.longitude);
+    return Number.isFinite(lat) && Number.isFinite(lng) && Math.abs(lat) <= 90 && Math.abs(lng) <= 180;
+  });
+};
+
 export default function LotsMapPage() {
    const { token } = useAuth();
    const alert = useAlert();
@@ -100,7 +143,7 @@ export default function LotsMapPage() {
   const [selectedEntity, setSelectedEntity] = useState(null); // { type: 'lote'|'sublote', id, nombre }
   const [searchQuery, setSearchQuery] = useState('');
   const [searchOpen, setSearchOpen] = useState(false);
-  const [mapType, setMapType] = useState('satellite');
+  const [mapType, setMapType] = useState('standard');
   const [estadoFilter, setEstadoFilter] = useState('');
   const [filterOpen, setFilterOpen] = useState(false);
   const [cultivoFilterId, setCultivoFilterId] = useState('');
@@ -117,9 +160,10 @@ export default function LotsMapPage() {
     const fetchData = async () => {
       try {
         const data = await lotService.getMapData(token);
-        setMapData(data);
+        const normalized = Array.isArray(data) ? data : (Array.isArray(data?.items) ? data.items : []);
+        setMapData(normalized);
         // Ajustar región inicial con el primer lote que tenga coordenadas válidas
-        const firstValid = (Array.isArray(data) ? data : []).find((l) => toLatLng(l?.coordenadas).length > 0);
+        const firstValid = normalized.find((l) => toLatLng(l?.coordenadas).length > 0);
         const positions = firstValid ? toLatLng(firstValid.coordenadas) : [];
         if (positions.length > 0) {
           const lats = positions.map((p) => p.latitude);
@@ -198,7 +242,7 @@ export default function LotsMapPage() {
 
   const centerToPositions = (positions) => {
     try {
-      const pts = Array.isArray(positions) ? positions : [];
+      const pts = sanitizePositions(positions);
       if (pts.length === 0) return;
       const lats = pts.map((p) => p.latitude);
       const lngs = pts.map((p) => p.longitude);
@@ -209,12 +253,16 @@ export default function LotsMapPage() {
       const centerLat = (minLat + maxLat) / 2;
       const centerLng = (minLng + maxLng) / 2;
       const padding = 0.02;
-      setRegion({
-        latitude: centerLat,
-        longitude: centerLng,
-        latitudeDelta: Math.max(0.005, (maxLat - minLat) + padding),
-        longitudeDelta: Math.max(0.005, (maxLng - minLng) + padding),
-      });
+      const latDelta = Math.max(0.005, (maxLat - minLat) + padding);
+      const lngDelta = Math.max(0.005, (maxLng - minLng) + padding);
+      if (Number.isFinite(centerLat) && Number.isFinite(centerLng) && Number.isFinite(latDelta) && Number.isFinite(lngDelta)) {
+        setRegion({
+          latitude: centerLat,
+          longitude: centerLng,
+          latitudeDelta: latDelta,
+          longitudeDelta: lngDelta,
+        });
+      }
     } catch {}
   };
 
@@ -223,11 +271,11 @@ export default function LotsMapPage() {
       const coords = [];
       const safe = Array.isArray(mapData) ? mapData : [];
       safe.forEach((lote) => {
-        const lp = toLatLng(lote.coordenadas);
+        const lp = sanitizePositions(toLatLng(lote.coordenadas));
         lp.forEach((p) => coords.push(p));
         if (Array.isArray(lote.sublotes)) {
           lote.sublotes.forEach((s) => {
-            const sp = toLatLng(s.coordenadas);
+            const sp = sanitizePositions(toLatLng(s.coordenadas));
             sp.forEach((p) => coords.push(p));
           });
         }
@@ -308,7 +356,25 @@ export default function LotsMapPage() {
     );
   }
 
+  const mapsAvailable = Platform.OS === 'web' || Platform.OS === 'ios' || Boolean(PROVIDER_GOOGLE);
+  if (!mapsAvailable) {
+    return (
+      <View style={styles.center}>
+        <Text style={styles.error}>Mapa no disponible en esta ejecución. Usa build de desarrollo.</Text>
+      </View>
+    );
+  }
+
   const componentsReady = Boolean(MapView && Polygon && Marker);
+  if (!componentsReady) {
+    return (
+      <View style={styles.center}>
+        <Text style={styles.error}>Mapa no disponible en esta ejecución. Usa build de desarrollo.</Text>
+      </View>
+    );
+  }
+
+  
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.scrollContent}>
@@ -320,7 +386,7 @@ export default function LotsMapPage() {
           <View style={styles.card}><Text style={styles.cardTitle}>Sublotes</Text><Text style={styles.cardNumber}>{Array.isArray(mapData) ? mapData.reduce((s,l)=>s + (Array.isArray(l.sublotes)?l.sublotes.length:0),0) : 0}</Text></View>
         </View>
         <View style={styles.actionsRow}>
-          <Pressable style={[styles.actionBtn, styles.primary]} onPress={() => setOpenLotForm(true)}><Text style={styles.actionBtnText}>Nuevo Lote</Text></Pressable>
+          <Pressable style={[styles.actionBtn, styles.primary, styles.smallActionBtn]} onPress={() => setOpenLotForm(true)}><Text style={[styles.actionBtnText, styles.smallActionBtnText]}>Nuevo Lote</Text></Pressable>
           <Pressable style={[styles.actionBtn, styles.secondary]} onPress={() => setOpenSublotForm(true)}><Text style={styles.secondaryText}>Nuevo Sublote</Text></Pressable>
           <Pressable style={[styles.actionBtn, styles.secondary]} onPress={() => setLotsModalOpen(true)}><Text style={styles.secondaryText}>Ver Lotes</Text></Pressable>
         </View>
@@ -362,14 +428,15 @@ export default function LotsMapPage() {
           latitudeDelta: 0.1,
           longitudeDelta: 0.1,
         }}
+        {...(PROVIDER_GOOGLE ? { provider: PROVIDER_GOOGLE } : {})}
         {...(region ? { region } : {})}
         onPress={handleMapPress}
-        showsUserLocation={true}
+        showsUserLocation={false}
         mapType={mapType}
         ref={mapRef}
       >
-        {mapData.map((lote) => {
-          const lotePositions = toLatLng(lote.coordenadas);
+        {(Array.isArray(mapData) ? mapData : []).map((lote) => {
+          const lotePositions = sanitizePositions(toLatLng(lote.coordenadas));
           const lotId = lote.id_lote || lote.id;
           const clist = (crops || []).filter(c => String(c.id_lote) === String(lotId));
           const estadoOk = estadoFilter ? clist.some(c => String(c.estado_cultivo || '').toLowerCase() === estadoFilter) : true;
@@ -390,8 +457,8 @@ export default function LotsMapPage() {
                 />
               )}
               {Array.isArray(lote.sublotes) && lote.sublotes.map((sublote) => {
-                const subPositions = toLatLng(sublote.coordenadas);
-                return showSublotes && subPositions.length > 0 && passes ? (
+                const subPositions = sanitizePositions(toLatLng(sublote.coordenadas));
+                return showSublotes && subPositions.length > 0 && subPositions.length >= 3 && passes ? (
                   <Polygon
                     key={`sublote-${sublote.id_sublote}`}
                     coordinates={subPositions}
@@ -456,10 +523,10 @@ export default function LotsMapPage() {
             const entity = selectedEntity;
             let positions = [];
             const lot = (mapData || []).find(l => (l.id_lote || l.id) === entity.id);
-            if (entity.type === 'lote' && lot) positions = toLatLng(lot.coordenadas);
+            if (entity.type === 'lote' && lot) positions = sanitizePositions(toLatLng(lot.coordenadas));
             if (entity.type === 'sublote' && lot && Array.isArray(lot.sublotes)) {
               const s = lot.sublotes.find(x => x.id_sublote === entity.id);
-              if (s) positions = toLatLng(s.coordenadas);
+              if (s) positions = sanitizePositions(toLatLng(s.coordenadas));
             }
             const area = polygonAreaMeters(positions);
             const ha = (area / 10000).toFixed(2);
@@ -639,6 +706,7 @@ export default function LotsMapPage() {
         sublot={null}
       />
       ) : null}
+      
       <View style={{ height: 16 }} />
     </ScrollView>
   );
@@ -659,6 +727,8 @@ const styles = StyleSheet.create({
   actionBtnText: { color: '#fff', fontWeight: '700' },
   secondary: { borderWidth: 1, borderColor: '#E4E7EC', backgroundColor: '#fff' },
   secondaryText: { color: '#334155', fontWeight: '700' },
+  smallActionBtn: { paddingHorizontal: Platform.select({ web: 12, default: 10 }), paddingVertical: Platform.select({ web: 8, default: 6 }), borderRadius: Platform.select({ web: 8, default: 6 }), minHeight: Platform.select({ web: 0, default: 32 }) },
+  smallActionBtnText: { fontSize: Platform.select({ web: 14, default: 12 }) },
   toggleRow: { flexDirection: 'row', paddingHorizontal: 12, marginBottom: 8 },
   toggleChip: { borderWidth: 1, borderRadius: 16, paddingHorizontal: 12, paddingVertical: 6, marginRight: 8 },
   toggleActive: { backgroundColor: '#16A34A', borderColor: '#16A34A' },

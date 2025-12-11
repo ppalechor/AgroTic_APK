@@ -54,6 +54,50 @@ export async function login({ numero_documento, password }) {
   return { token, user };
 }
 
+export const getMeUrl = () => `${baseUrl}/auth/me`;
+
+export async function getMe(token) {
+  const url = getMeUrl();
+  const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
+  const contentType = res.headers.get('content-type') || '';
+  let data;
+  if (contentType.includes('application/json')) {
+    data = await res.json();
+  } else {
+    const text = await res.text();
+    throw new Error(`Respuesta no JSON (${res.status}): ${text.slice(0, 120)}`);
+  }
+  if (!res.ok) {
+    const msg = data?.message || 'Token inválido';
+    throw new Error(msg);
+  }
+  const user = data?.user || data;
+  return user;
+}
+
+export const getRefreshUrl = () => `${baseUrl}/auth/refresh`;
+
+export async function refresh(token) {
+  const url = getRefreshUrl();
+  const res = await fetch(url, { method: 'POST', headers: { Authorization: `Bearer ${token}` } });
+  const contentType = res.headers.get('content-type') || '';
+  let data;
+  if (contentType.includes('application/json')) {
+    data = await res.json();
+  } else {
+    const text = await res.text();
+    throw new Error(`Respuesta no JSON (${res.status}): ${text.slice(0, 120)}`);
+  }
+  if (!res.ok) {
+    const msg = data?.message || 'No se pudo refrescar token';
+    throw new Error(msg);
+  }
+  const tokenNew = data?.access_token;
+  const user = data?.user;
+  if (!tokenNew) throw new Error('El servidor no retornó access_token');
+  return { token: tokenNew, user };
+}
+
 export const getCultivosUrl = () => `${baseUrl}/cultivos`;
 
 export async function getCultivos(token) {
@@ -74,6 +118,32 @@ export async function getCultivos(token) {
 }
 
 export const getForgotPasswordUrl = () => `${baseUrl}/auth/forgot-password`;
+
+// Roles (público)
+export const getRolesDisponiblesUrl = () => `${baseUrl}/rol/disponibles`;
+
+export async function listRolesDisponibles() {
+  const url = getRolesDisponiblesUrl();
+  const res = await fetch(url, { headers: { Authorization: `Bearer ${getToken() || ''}` } });
+  const contentType = res.headers.get('content-type') || '';
+  let data;
+  if (contentType.includes('application/json')) {
+    data = await res.json();
+  } else {
+    const text = await res.text();
+    throw new Error(`Respuesta no JSON (${res.status}): ${text.slice(0, 120)}`);
+  }
+  if (!res.ok) {
+    throw new Error(data?.message || 'No se pudieron obtener roles');
+  }
+  const normalize = (arr) => (arr || []).map(r => ({
+    id_rol: r?.id_rol ?? r?.id ?? null,
+    nombre_rol: r?.nombre_rol ?? r?.name ?? '',
+  })).filter(r => r.id_rol && r.nombre_rol);
+  if (Array.isArray(data)) return normalize(data);
+  if (Array.isArray(data?.data)) return normalize(data.data);
+  return [];
+}
 
 export async function requestPasswordReset(email) {
   const url = getForgotPasswordUrl();
@@ -269,11 +339,7 @@ export async function finanzasRentabilidad({ cultivoId, from, to, criterio = 'ma
   return data;
 }
 
-export function finanzasExportUrl({ tipo = 'excel', cultivoId, from, to, groupBy = 'mes' }) {
-  const params = new URLSearchParams({ cultivoId: String(cultivoId), from, to, groupBy });
-  const endpoint = tipo === 'pdf' ? 'pdf' : 'excel';
-  return `${baseUrl}/finanzas/resumen/${endpoint}?${params.toString()}`;
-}
+// Exportación de finanzas removida según solicitud
 
 export async function finanzasIngresos({ cultivoId, from, to, groupBy = 'mes' }) {
   const params = new URLSearchParams({ cultivoId: String(cultivoId), from, to, groupBy });
@@ -329,6 +395,25 @@ export async function createEpa(payload, token) {
   return data;
 }
 
+export async function createEpaWithImage(payload, file, token) {
+  const form = new FormData();
+  Object.entries(payload || {}).forEach(([k, v]) => {
+    if (v !== undefined && v !== null) form.append(k, String(v));
+  });
+  if (file) {
+    form.append('imagen', file);
+  }
+  const res = await fetch(getEpasUrl(), {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${token}` },
+    body: form,
+  });
+  const ct = res.headers.get('content-type') || '';
+  const data = ct.includes('application/json') ? await res.json() : await res.text();
+  if (!res.ok) throw new Error((data?.message) || 'Error creando EPA');
+  return data;
+}
+
 export async function updateEpa(id, payload, token) {
   const res = await fetch(`${getEpasUrl()}/${id}`, {
     method: 'PATCH',
@@ -338,6 +423,20 @@ export async function updateEpa(id, payload, token) {
   const ct = res.headers.get('content-type') || '';
   const data = ct.includes('application/json') ? await res.json() : await res.text();
   if (!res.ok) throw new Error((data?.message) || 'Error actualizando EPA');
+  return data;
+}
+
+export async function uploadEpaImage(id, file, token) {
+  const form = new FormData();
+  form.append('imagen', file);
+  const res = await fetch(`${getEpasUrl()}/${id}/upload-imagen`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${token}` },
+    body: form,
+  });
+  const ct = res.headers.get('content-type') || '';
+  const data = ct.includes('application/json') ? await res.json() : await res.text();
+  if (!res.ok) throw new Error((data?.message) || 'Error subiendo imagen EPA');
   return data;
 }
 
@@ -440,6 +539,61 @@ export async function listInventario(token) {
   const data = ct.includes('application/json') ? await res.json() : await res.text();
   if (!res.ok) throw new Error((data?.message) || 'Error obteniendo inventario');
   const arr = Array.isArray(data) ? data : Array.isArray(data?.data) ? data.data : [];
+  return arr.map((it) => ({
+    id_inventario: it.id_inventario || it.id,
+    cantidad_stock: it.cantidad_stock,
+    unidad_medida: it.unidad_medida,
+    fecha: it.fecha,
+    id_insumo: it.id_insumo || it.insumo?.id_insumo,
+    nombre_insumo: it.insumo?.nombre_insumo || it.nombre_insumo,
+    codigo: it.insumo?.codigo || it.codigo,
+    categoria: it.insumo?.id_categoria?.nombre || it.categoria || '',
+    almacen: it.insumo?.id_almacen?.nombre_almacen || it.almacen || '',
+    id_categoria: (it.insumo?.id_categoria?.id_categoria ?? it.insumo?.id_categoria ?? it.id_categoria) || null,
+    id_almacen: (it.insumo?.id_almacen?.id_almacen ?? it.insumo?.id_almacen ?? it.id_almacen) || null,
+  }));
+}
+
+// Crear un ítem de inventario
+export async function createInventario(payload, token) {
+  const res = await fetch(getInventarioUrl(), {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+    body: JSON.stringify(payload),
+  });
+  const ct = res.headers.get('content-type') || '';
+  const data = ct.includes('application/json') ? await res.json() : await res.text();
+  if (!res.ok) throw new Error((data?.message) || 'Error creando inventario');
+  return data;
+}
+
+// Actualizar un ítem de inventario
+export async function updateInventario(id, payload, token) {
+  const res = await fetch(`${getInventarioUrl()}/${id}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+    body: JSON.stringify(payload),
+  });
+  const ct = res.headers.get('content-type') || '';
+  const data = ct.includes('application/json') ? await res.json() : await res.text();
+  if (!res.ok) throw new Error((data?.message) || 'Error actualizando inventario');
+  return data;
+}
+
+export async function deleteInventario(id, token) {
+  const res = await fetch(`${getInventarioUrl()}/${id}`, { method: 'DELETE', headers: { Authorization: `Bearer ${token}` } });
+  if (!res.ok) throw new Error('Error eliminando inventario');
+  return true;
+}
+
+export const getInventarioStockBajoUrl = (limite = 10) => `${getInventarioUrl()}/stock-bajo?limite=${encodeURIComponent(limite)}`;
+
+export async function listInventarioStockBajo(token, limite = 10) {
+  const res = await fetch(getInventarioStockBajoUrl(limite), { headers: { Authorization: `Bearer ${token}` } });
+  const ct = res.headers.get('content-type') || '';
+  const data = ct.includes('application/json') ? await res.json() : await res.text();
+  if (!res.ok) throw new Error((data?.message) || 'Error obteniendo stock bajo');
+  const arr = Array.isArray(data?.items) ? data.items : Array.isArray(data) ? data : [];
   return arr.map((it) => ({
     id_inventario: it.id_inventario || it.id,
     cantidad_stock: it.cantidad_stock,
@@ -672,6 +826,7 @@ export async function listActividades(token, params = {}) {
   Object.entries(params || {}).forEach(([k, v]) => {
     if (v !== undefined && v !== null && String(v).length) url.searchParams.set(k, String(v));
   });
+  console.log('[api] GET actividades', url.toString());
   const res = await fetch(url.toString(), { headers: { Authorization: `Bearer ${token}` } });
   const ct = res.headers.get('content-type') || '';
   const data = ct.includes('application/json') ? await res.json() : await res.text();
@@ -754,7 +909,9 @@ export async function uploadActividadFoto(id, file, token, descripcion) {
   if (descripcion !== undefined && descripcion !== null) {
     form.append('descripcion', String(descripcion));
   }
-  const res = await fetch(`${getActividadesUrl()}/upload-photo/${id}`, {
+  const url = `${getActividadesUrl()}/upload-photo/${id}`;
+  console.log('[api] POST actividad foto', url, 'file=', !!file);
+  const res = await fetch(url, {
     method: 'POST',
     headers: { Authorization: `Bearer ${token}` },
     body: form,
@@ -770,13 +927,13 @@ export async function listActividadFotos(id, token) {
   const fotos = Array.isArray(actividad?.fotos) ? actividad.fotos : [];
   const base = (baseUrl || '').replace(/\/$/, '');
   return fotos.map((f) => {
-    const raw = f?.url_imagen ? String(f.url_imagen) : '';
+    const raw = (f?.ruta_foto || f?.url_imagen) ? String(f.ruta_foto || f.url_imagen) : '';
     let abs = '';
     try {
       abs = raw ? (raw.startsWith('http') ? raw : new URL(raw.startsWith('/') ? raw.slice(1) : raw, `${base}/`).toString()) : '';
     } catch {}
     return {
-      id: f.id,
+      id: (f.id ?? f.id_foto ?? null),
       url_imagen: abs || raw || '',
       descripcion: f.descripcion || '',
       fecha_carga: f.fecha_carga,
@@ -785,7 +942,19 @@ export async function listActividadFotos(id, token) {
 }
 
 export async function deleteActividadFoto(id, token) {
-  const res = await fetch(`${getActividadesUrl()}/fotos/${id}`, { method: 'DELETE', headers: { Authorization: `Bearer ${token}` } });
-  if (!res.ok && res.status !== 204) throw new Error('Error eliminando foto');
+  const fotoId = Number(id);
+  if (!Number.isFinite(fotoId) || fotoId <= 0) throw new Error('ID de foto inválido');
+  const url = `${getActividadesUrl()}/fotos/${fotoId}`;
+  console.log('[api] DELETE actividad foto', url);
+  const res = await fetch(url, { method: 'DELETE', headers: { Authorization: `Bearer ${token}` } });
+  if (!res.ok && res.status !== 204) {
+    const ct = res.headers.get('content-type') || '';
+    if (ct.includes('application/json')) {
+      const data = await res.json();
+      throw new Error(data?.message || 'Error eliminando foto');
+    }
+    const text = await res.text();
+    throw new Error(text.slice(0, 160) || 'Error eliminando foto');
+  }
   return true;
 }

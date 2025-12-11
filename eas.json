@@ -1,17 +1,37 @@
 {
   "cli": {
-    "version": ">= 4.0.0"
+    "version": ">= 4.0.0",
+    "appVersionSource": "remote"
   },
   "build": {
     "development": {
       "developmentClient": true,
-      "distribution": "internal"
+      "distribution": "internal",
+      "env": {
+        "EXPO_PUBLIC_API_URL": "https://tricky-donkeys-go.loca.lt",
+        "EXPO_PUBLIC_WEB_URL": "https://agrotic.com",
+        "EXPO_PUBLIC_GOOGLE_MAPS_API_KEY": "AIzaSyDJ4mbMgGtosk-Y-xpMO6r3qpzF-iS80IU",
+        "GOOGLE_MAPS_API_KEY": "AIzaSyDJ4mbMgGtosk-Y-xpMO6r3qpzF-iS80IU"
+      }
     },
     "preview": {
-      "distribution": "internal"
+      "distribution": "internal",
+      "env": {
+        "EXPO_PUBLIC_API_URL": "https://tricky-donkeys-go.loca.lt",
+        "EXPO_PUBLIC_WEB_URL": "https://agrotic.com",
+        "EXPO_PUBLIC_GOOGLE_MAPS_API_KEY": "AIzaSyDJ4mbMgGtosk-Y-xpMO6r3qpzF-iS80IU",
+        "GOOGLE_MAPS_API_KEY": "AIzaSyDJ4mbMgGtosk-Y-xpMO6r3qpzF-iS80IU"
+      }
     },
     "production": {
-      "autoIncrement": true
+      "autoIncrement": true,
+      "distribution": "internal",
+      "env": {
+        "EXPO_PUBLIC_API_URL": "https://tricky-donkeys-go.loca.lt",
+        "EXPO_PUBLIC_WEB_URL": "https://agrotic.com",
+        "EXPO_PUBLIC_GOOGLE_MAPS_API_KEY": "AIzaSyDJ4mbMgGtosk-Y-xpMO6r3qpzF-iS80IU",
+        "GOOGLE_MAPS_API_KEY": "AIzaSyDJ4mbMgGtosk-Y-xpMO6r3qpzF-iS80IU"
+      }
     }
   },
   "submit": {

@@ -300,25 +300,7 @@ export default function IotPage() {
   }, [query, sensors, filterType, filterEstado, filterConnection, liveDevices]);
 
   const WebChart = ({ hist, color, min, max, unit }) => {
-    if (Platform.OS !== 'web' || !Array.isArray(hist) || hist.length === 0) return null;
-    const { ResponsiveContainer, LineChart, Line, XAxis, YAxis, Tooltip, ReferenceArea, CartesianGrid } = eval('require')("recharts");
-    const data = hist.map((v, i) => ({ idx: i + 1, val: Number(v) }));
-    const yMin = Math.min(min, ...hist.map((v) => Number(v)));
-    const yMax = Math.max(max, ...hist.map((v) => Number(v)));
-    return (
-      <View style={{ height: 160 }}>
-        <ResponsiveContainer width="100%" height="100%">
-          <LineChart data={data} margin={{ top: 8, right: 12, left: 12, bottom: 8 }}>
-            <CartesianGrid strokeDasharray="3 3" />
-            <XAxis dataKey="idx" tick={{ fontSize: 10 }} />
-            <YAxis domain={[yMin, yMax]} tick={{ fontSize: 10 }} label={{ value: unit || '', angle: -90, position: 'insideLeft', style: { fontSize: 10, fill: '#64748b' } }} />
-            <Tooltip formatter={(value) => [Number(value).toFixed(2), unit || '']} labelFormatter={(label) => `Muestra ${label}`} />
-            <ReferenceArea y1={min} y2={max} fill="#DCFCE7" />
-            <Line type="monotone" dataKey="val" stroke={color} strokeWidth={2} dot={false} isAnimationActive={false} />
-          </LineChart>
-        </ResponsiveContainer>
-      </View>
-    );
+    return null;
   };
 
   const connected = useMemo(() => {
@@ -685,3 +667,4 @@ const styles = StyleSheet.create({
   listTitle: { fontSize: 14, fontWeight: '600', color: '#0f172a' },
   listDesc: { fontSize: 12, color: '#64748b' },
 })
+
